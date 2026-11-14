@@ -66,7 +66,7 @@
   <label id="micRow" style="display:none;font-weight:500"><input type="checkbox" id="micOk"> 🎤 Let me talk to the bots with my voice</label>
   <p id="lmsg"></p>
   <p class="small"><b>Computer:</b> WASD move, mouse look, hold left click to charge and release to cast, click when the bobber dips, hold to reel (let go when the line is tight!). Hold V near a 🤖 bot to talk to it.<br>
-  <b>VR:</b> left stick move, right stick turn, right trigger does the same as left click. Point at the boards and pull a trigger to shop or travel. Hold a grip button near a 🤖 bot to talk to it.</p>
+  <b>VR:</b> put your hands on the ground and push or swing your arms to move (fling to jump), or use the left stick to move, right stick turn, right trigger does the same as left click. Point at the boards and pull a trigger to shop or travel. Hold a grip button near a 🤖 bot to talk to it.</p>
 </div></div>
 
 <div id="start" class="panel" style="display:none"><div class="card">
@@ -1205,7 +1205,7 @@ function buzz(hand,intensity,ms){
   if(a && a.pulse){ try{ a.pulse(intensity,ms); }catch(e){} }
 }
 renderer.xr.addEventListener('sessionstart',()=>{ $('hud').style.display='none'; $('start').style.display='none'; gameStarted=true; pitch=0; camera.rotation.set(0,0,0); });
-renderer.xr.addEventListener('sessionend',()=>{ attachRodToCamera(); $('hud').style.display='block'; scene.add(wristBoard.mesh); wristBoard.mesh.visible=false; camera.position.set(0,1.6,0); });
+renderer.xr.addEventListener('sessionend',()=>{ rig.position.y=0; loco.vel.set(0,0,0); attachRodToCamera(); $('hud').style.display='block'; scene.add(wristBoard.mesh); wristBoard.mesh.visible=false; camera.position.set(0,1.6,0); });
 let snapLatch=false;
 
 // ================= MOVEMENT =================
@@ -1215,6 +1215,39 @@ function tryMove(dx,dz){
   if(walkable(cp.x+dx,cp.z+dz)){ rig.position.x+=dx; rig.position.z+=dz; }
   else if(walkable(cp.x+dx,cp.z)) rig.position.x+=dx;
   else if(walkable(cp.x,cp.z+dz)) rig.position.z+=dz;
+}
+// ---- arm locomotion (VR): put your hands on the ground and push/swing to move, fling yourself to jump
+const loco = {prev:[null,null], contact:[false,false], vel:new THREE.Vector3()};
+const HAND_GROUND = 0.2;            // a hand this low (m) counts as touching the ground, so you don't have to reach right to the floor
+function handTouches(w){ return w.y < HAND_GROUND && walkable(w.x, w.z); }
+function armLoco(dt, hands){        // hands: [{local:Vector3, on:boolean}] in rig space (controller positions)
+  rig.updateMatrixWorld();
+  const move=new THREE.Vector3(); let n=0;
+  hands.forEach((h,i)=>{
+    if(!h || !h.on){ loco.contact[i]=false; loco.prev[i]=null; return; }
+    const w=rig.localToWorld(h.local.clone());
+    if(handTouches(w)){
+      const m=new THREE.Vector3();
+      if(loco.contact[i] && loco.prev[i]){ m.x=-(w.x-loco.prev[i].x); m.z=-(w.z-loco.prev[i].z); } // hand stays put, body moves
+      if(w.y<HAND_GROUND-0.05) m.y=(HAND_GROUND-0.05)-w.y;                                                // pushing down lifts you
+      move.add(m); n++; loco.contact[i]=true;
+    } else loco.contact[i]=false;
+  });
+  if(n>0){
+    move.multiplyScalar(1/n);
+    if(dt>0){ const v=move.clone().multiplyScalar(1/dt); loco.vel.lerp(v,0.5); }
+    tryMove(move.x, move.z); rig.position.y=Math.max(0, rig.position.y+move.y);
+  } else if(rig.position.y>0 || loco.vel.lengthSq()>0.0001){
+    loco.vel.y-=9.8*dt;                                     // flying through the air after a fling
+    tryMove(loco.vel.x*dt, loco.vel.z*dt);
+    rig.position.y+=loco.vel.y*dt;
+    if(rig.position.y<=0){ rig.position.y=0; loco.vel.y=0; }
+    if(rig.position.y===0){ const f=Math.exp(-7*dt); loco.vel.x*=f; loco.vel.z*=f; }  // ground friction
+  }
+  const sp=Math.hypot(loco.vel.x,loco.vel.z); if(sp>7){ loco.vel.x*=7/sp; loco.vel.z*=7/sp; }
+  if(loco.vel.y>6) loco.vel.y=6;
+  rig.updateMatrixWorld();
+  hands.forEach((h,i)=>{ loco.prev[i] = (h && h.on) ? rig.localToWorld(h.local.clone()) : null; });
 }
 function updateMovement(dt){
   let mx=0, mz=0;
@@ -1234,6 +1267,7 @@ function updateMovement(dt){
     const right = new THREE.Vector3(-dir.z,0,dir.x);
     const sp=2.8*dt;
     tryMove((right.x*mx - dir.x*mz)*sp, (right.z*mx - dir.z*mz)*sp);
+    armLoco(dt, controllers.map(c=>({local:c.position, on:!!(c.userData.hand && sources[c.userData.hand])})));
   } else {
     rig.rotation.y = yaw; camera.rotation.set(pitch,0,0,'YXZ');
     if(keys.KeyW||keys.ArrowUp) mz-=1; if(keys.KeyS||keys.ArrowDown) mz+=1;
