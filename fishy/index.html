@@ -898,7 +898,7 @@ const boardMeshes=[shopBoard.mesh,dexBoard.mesh,travelBoard.mesh];
 function travelTo(id){
   if(F.state!=='idle' && F.state!=='showing') endFishing();
   setZone(id); save.zone=id; persist();
-  rig.position.set((Math.random()*2-1)*3,0,-4-Math.random()*3); yaw=0; rig.rotation.y=0;
+  rig.position.set((Math.random()*2-1)*3,floorY(),-4-Math.random()*3); yaw=0; rig.rotation.y=0; loco.vel.set(0,0,0);
   travelMsg='Welcome to '+zoneOf(id).name+'!'; dexTab=null;
   shopBoard.redraw(); dexBoard.redraw(); travelBoard.redraw();
   setStatus('Welcome to '+zoneOf(id).name+'!',3); sfx.splash();
@@ -1204,7 +1204,7 @@ function buzz(hand,intensity,ms){
   const s=sources[hand]; const a=s && s.gamepad && s.gamepad.hapticActuators && s.gamepad.hapticActuators[0];
   if(a && a.pulse){ try{ a.pulse(intensity,ms); }catch(e){} }
 }
-renderer.xr.addEventListener('sessionstart',()=>{ $('hud').style.display='none'; $('start').style.display='none'; gameStarted=true; pitch=0; camera.rotation.set(0,0,0); });
+renderer.xr.addEventListener('sessionstart',()=>{ rig.position.y=-VR_DROP; loco.vel.set(0,0,0); $('hud').style.display='none'; $('start').style.display='none'; gameStarted=true; pitch=0; camera.rotation.set(0,0,0); });
 renderer.xr.addEventListener('sessionend',()=>{ rig.position.y=0; loco.vel.set(0,0,0); attachRodToCamera(); $('hud').style.display='block'; scene.add(wristBoard.mesh); wristBoard.mesh.visible=false; camera.position.set(0,1.6,0); });
 let snapLatch=false;
 
@@ -1218,7 +1218,10 @@ function tryMove(dx,dz){
 }
 // ---- arm locomotion (VR): put your hands on the ground and push/swing to move, fling yourself to jump
 const loco = {prev:[null,null], contact:[false,false], vel:new THREE.Vector3()};
-const HAND_GROUND = 0.2;            // a hand this low (m) counts as touching the ground, so you don't have to reach right to the floor
+// Like Gorilla Tag, in VR you are shorter than real life: the game ground sits VR_DROP metres above your real floor,
+// so your hands reach it while standing with a small bend (real hand height about 0.6 m = touching the game ground).
+const VR_DROP = 0.6, HAND_GROUND = 0.05;
+const floorY = () => renderer.xr.isPresenting ? -VR_DROP : 0;
 function handTouches(w){ return w.y < HAND_GROUND && walkable(w.x, w.z); }
 function armLoco(dt, hands){        // hands: [{local:Vector3, on:boolean}] in rig space (controller positions)
   rig.updateMatrixWorld();
@@ -1229,20 +1232,20 @@ function armLoco(dt, hands){        // hands: [{local:Vector3, on:boolean}] in r
     if(handTouches(w)){
       const m=new THREE.Vector3();
       if(loco.contact[i] && loco.prev[i]){ m.x=-(w.x-loco.prev[i].x); m.z=-(w.z-loco.prev[i].z); } // hand stays put, body moves
-      if(w.y<HAND_GROUND-0.05) m.y=(HAND_GROUND-0.05)-w.y;                                                // pushing down lifts you
+      if(w.y<0) m.y=-w.y;                                                                               // pushing down lifts you
       move.add(m); n++; loco.contact[i]=true;
     } else loco.contact[i]=false;
   });
   if(n>0){
     move.multiplyScalar(1/n);
     if(dt>0){ const v=move.clone().multiplyScalar(1/dt); loco.vel.lerp(v,0.5); }
-    tryMove(move.x, move.z); rig.position.y=Math.max(0, rig.position.y+move.y);
-  } else if(rig.position.y>0 || loco.vel.lengthSq()>0.0001){
+    tryMove(move.x, move.z); rig.position.y=Math.max(floorY(), rig.position.y+move.y);
+  } else if(rig.position.y>floorY() || loco.vel.lengthSq()>0.0001){
     loco.vel.y-=9.8*dt;                                     // flying through the air after a fling
     tryMove(loco.vel.x*dt, loco.vel.z*dt);
     rig.position.y+=loco.vel.y*dt;
-    if(rig.position.y<=0){ rig.position.y=0; loco.vel.y=0; }
-    if(rig.position.y===0){ const f=Math.exp(-7*dt); loco.vel.x*=f; loco.vel.z*=f; }  // ground friction
+    if(rig.position.y<=floorY()){ rig.position.y=floorY(); loco.vel.y=0; }
+    if(rig.position.y===floorY()){ const f=Math.exp(-7*dt); loco.vel.x*=f; loco.vel.z*=f; }  // ground friction
   }
   const sp=Math.hypot(loco.vel.x,loco.vel.z); if(sp>7){ loco.vel.x*=7/sp; loco.vel.z*=7/sp; }
   if(loco.vel.y>6) loco.vel.y=6;
