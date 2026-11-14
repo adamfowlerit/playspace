@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Fishy Friends VR</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#8fd3ff;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#123}
+  canvas{display:block}
+  .panel{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:20;background:linear-gradient(#8fd3ffcc,#2a9df4cc)}
+  .card{background:#fffdf6;border-radius:18px;padding:24px 28px;max-width:440px;width:88%;box-shadow:0 10px 40px #0004}
+  .card h1{margin:0 0 6px;font-size:32px}
+  .card p{margin:6px 0}
+  .card label{display:block;margin:12px 0 4px;font-weight:600}
+  .card input[type=text]{font-size:18px;padding:8px 10px;border-radius:10px;border:2px solid #9bc;width:100%;box-sizing:border-box}
+  .row{display:flex;gap:10px;margin-top:12px;align-items:center}
+  button{font-size:17px;font-weight:700;padding:11px 16px;border-radius:12px;border:none;background:#ff7043;color:#fff;cursor:pointer;flex:1}
+  button.alt{background:#2a9df4}
+  button:disabled{opacity:.5}
+  #code{text-transform:uppercase;letter-spacing:4px;flex:1}
+  .small{font-size:13px;color:#456}
+  #lmsg{min-height:20px;font-weight:600;color:#c62828}
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:5;display:none}
+  #coins{position:absolute;top:12px;left:12px;background:#0007;color:#fff;padding:8px 14px;border-radius:12px;font-weight:800;font-size:20px}
+  #gear{position:absolute;top:56px;left:12px;background:#0005;color:#fff;padding:5px 10px;border-radius:10px;font-size:13px}
+  #room{position:absolute;top:12px;right:12px;background:#0007;color:#fff;padding:8px 14px;border-radius:12px;font-weight:700}
+  #feed{position:absolute;top:58px;right:12px;width:290px;font-size:14px}
+  #feed div{background:#0006;color:#fff;margin-bottom:4px;padding:5px 9px;border-radius:9px}
+  #cross{position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px #0006}
+  #status{position:absolute;bottom:120px;width:100%;text-align:center;font-size:22px;font-weight:800;color:#fff;text-shadow:0 2px 6px #000a}
+  #barWrap{position:absolute;bottom:86px;left:50%;width:300px;margin-left:-150px;height:20px;background:#0006;border-radius:10px;overflow:hidden;display:none}
+  #bar{height:100%;width:0;background:#66bb6a}
+  #barLbl{position:absolute;inset:0;text-align:center;font-size:13px;line-height:20px;color:#fff;font-weight:700}
+  #start .card{text-align:center}
+  #touch{display:none}
+  #joy{position:fixed;left:24px;bottom:24px;width:120px;height:120px;border-radius:50%;background:#fff3;border:2px solid #fff8;z-index:6;touch-action:none}
+  #joyK{position:absolute;left:40px;top:40px;width:40px;height:40px;border-radius:50%;background:#fffa}
+  #actBtn{position:fixed;right:24px;bottom:28px;width:96px;height:96px;border-radius:50%;font-size:40px;z-index:6;padding:0;flex:none;touch-action:none}
+  #look{position:fixed;right:0;top:0;width:60%;height:100%;z-index:4;touch-action:none}
+</style>
+<script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+<script type="importmap">
+{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+}}
+</script>
+</head>
+<body>
+
+<div id="lobby" class="panel"><div class="card">
+  <h1>🎣 Fishy Friends</h1>
+  <p class="small">Catch fish, earn coins, upgrade your gear. Play together with a room code.</p>
+  <label for="nm">Your name</label>
+  <input type="text" id="nm" maxlength="12" placeholder="Name">
+  <label>Your colour</label>
+  <div class="row" id="colours"></div>
+  <div class="row"><button id="solo" class="alt">Play solo</button><button id="host">Host a game</button></div>
+  <div class="row"><input type="text" id="code" maxlength="4" placeholder="CODE"><button id="join">Join</button></div>
+  <p id="lmsg"></p>
+  <p class="small"><b>Computer:</b> WASD move, mouse look, hold left click to charge and release to cast, click when the bobber dips, hold to reel (let go when the line is tight!).<br>
+  <b>VR:</b> left stick move, right stick turn, right trigger does the same as left click. Point at the boards and pull a trigger to shop.</p>
+</div></div>
+
+<div id="start" class="panel" style="display:none"><div class="card">
+  <h1>Ready!</h1>
+  <p id="startRoom"></p>
+  <div class="row"><button id="play">Play on screen</button></div>
+  <p class="small">Got a VR headset? Use the <b>ENTER VR</b> button at the bottom of the page.</p>
+</div></div>
+
+<div id="hud">
+  <div id="coins">🪙 0</div>
+  <div id="gear"></div>
+  <div id="room"></div>
+  <div id="feed"></div>
+  <div id="cross"></div>
+  <div id="status"></div>
+  <div id="barWrap"><div id="bar"></div><div id="barLbl"></div></div>
+</div>
+
+<div id="touch">
+  <div id="look"></div>
+  <div id="joy"><div id="joyK"></div></div>
+  <button id="actBtn">🎣</button>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { VRButton } from 'three/addons/webxr/VRButton.js';
+import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
+
+// ================= DATA =================
+const RAR = {
+  junk:{w:8,c:'#8d6e63',label:'Junk'}, common:{w:60,c:'#78909c',label:'Common'},
+  uncommon:{w:25,c:'#43a047',label:'Uncommon'}, rare:{w:10,c:'#1e88e5',label:'Rare'},
+  epic:{w:4,c:'#8e24aa',label:'Epic'}, legendary:{w:1,c:'#f9a825',label:'Legendary'}
+};
+const FISH = [
+  {id:'boot',name:'Old Boot',r:'junk',col:0x5d4037,min:0.4,max:1,coin:1,str:0.2,minD:0},
+  {id:'sardine',name:'Sardine',r:'common',col:0x90a4ae,min:0.05,max:0.2,coin:4,str:0.3,minD:0},
+  {id:'perch',name:'Perch',r:'common',col:0x9ccc65,min:0.2,max:1.2,coin:6,str:0.4,minD:0},
+  {id:'bream',name:'Bream',r:'common',col:0xbdbdbd,min:0.3,max:1.5,coin:7,str:0.45,minD:0},
+  {id:'trout',name:'Rainbow Trout',r:'uncommon',col:0xf48fb1,min:0.5,max:3,coin:15,str:0.55,minD:7},
+  {id:'flathead',name:'Flathead',r:'uncommon',col:0xa1887f,min:0.5,max:3,coin:16,str:0.55,minD:8},
+  {id:'snapper',name:'Snapper',r:'uncommon',col:0xef5350,min:0.8,max:5,coin:18,str:0.6,minD:10},
+  {id:'puffer',name:'Pufferfish',r:'rare',col:0xffee58,min:0.3,max:2,coin:40,str:0.5,minD:12},
+  {id:'barra',name:'Barramundi',r:'rare',col:0xb0bec5,min:2,max:15,coin:45,str:0.75,minD:15},
+  {id:'cod',name:'Murray Cod',r:'rare',col:0x689f38,min:3,max:30,coin:55,str:0.8,minD:18},
+  {id:'koi',name:'Golden Koi',r:'epic',col:0xffa000,min:2,max:10,coin:120,str:0.85,minD:22},
+  {id:'ray',name:'Rainbow Ray',r:'epic',col:0x26c6da,min:5,max:40,coin:150,str:0.9,minD:25},
+  {id:'sword',name:'Swordfish',r:'epic',col:0x3949ab,min:20,max:120,coin:170,str:0.95,minD:28},
+  {id:'ghost',name:'Ghost Fish',r:'legendary',col:0xe0f7fa,min:1,max:8,coin:500,str:1,minD:31},
+  {id:'leviathan',name:'Baby Leviathan',r:'legendary',col:0x1b5e20,min:80,max:300,coin:800,str:1.1,minD:35},
+];
+const RODS = [
+  {id:'twig',name:'Twig Rod',price:0,cast:12,power:1,col:0x8d6e63},
+  {id:'bamboo',name:'Bamboo Rod',price:60,cast:18,power:1.3,col:0xc5e1a5},
+  {id:'carbon',name:'Carbon Rod',price:250,cast:26,power:1.7,col:0x37474f},
+  {id:'gold',name:'Golden Rod',price:800,cast:34,power:2.2,col:0xffca28},
+  {id:'rainbow',name:'Rainbow Rod',price:2000,cast:42,power:3,col:0xec407a},
+];
+const BAITS = [
+  {id:'bread',name:'Bread',price:0,luck:1,speed:1},
+  {id:'worm',name:'Worms',price:40,luck:1.4,speed:1.2},
+  {id:'shrimp',name:'Shrimp',price:180,luck:2,speed:1.4},
+  {id:'glow',name:'Glow Lure',price:600,luck:3,speed:1.6},
+  {id:'magic',name:'Magic Lure',price:1500,luck:5,speed:2},
+];
+const HATS = [
+  {id:'none',name:'No Hat',price:0},{id:'cap',name:'Cap',price:30},{id:'bucket',name:'Bucket Hat',price:90},
+  {id:'pirate',name:'Pirate Hat',price:300},{id:'crown',name:'Crown',price:1200},
+];
+const COLOURS = ['#ff7043','#ffca28','#66bb6a','#29b6f6','#ab47bc','#ec407a','#8d6e63','#eceff1'];
+
+const SAVE_KEY = 'fishyfriends-save-v1';
+const save = {coins:0,rods:['twig'],rod:'twig',baits:['bread'],bait:'bread',hats:['none'],hat:'none',dex:{},name:'',color:COLOURS[0]};
+try { Object.assign(save, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}')); } catch(e) {}
+function persist(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch(e) {} }
+const curRod = () => RODS.find(r=>r.id===save.rod) || RODS[0];
+const curBait = () => BAITS.find(b=>b.id===save.bait) || BAITS[0];
+
+const rand = (a,b) => a + Math.random()*(b-a);
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const $ = id => document.getElementById(id);
+
+// ================= AUDIO =================
+let ac = null;
+function audio(){ try { if(!ac) ac = new (window.AudioContext||window.webkitAudioContext)(); if(ac.state==='suspended') ac.resume(); } catch(e){} return ac; }
+function tone(f,dur,type='sine',vol=0.12,slide=0){
+  const a = ac; if(!a) return;
+  const o=a.createOscillator(), g=a.createGain(); o.type=type; o.frequency.value=f;
+  if(slide) o.frequency.linearRampToValueAtTime(Math.max(40,f+slide), a.currentTime+dur);
+  g.gain.setValueAtTime(vol,a.currentTime); g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+dur);
+  o.connect(g).connect(a.destination); o.start(); o.stop(a.currentTime+dur);
+}
+function noise(dur,vol=0.2,freq=900){
+  const a = ac; if(!a) return;
+  const buf=a.createBuffer(1,Math.floor(a.sampleRate*dur),a.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*(1-i/d.length);
+  const s=a.createBufferSource(), f=a.createBiquadFilter(), g=a.createGain();
+  s.buffer=buf; f.type='lowpass'; f.frequency.value=freq; g.gain.value=vol;
+  s.connect(f).connect(g).connect(a.destination); s.start();
+}
+const sfx = {
+  cast:()=>tone(500,0.25,'sine',0.08,500),
+  splash:()=>noise(0.4,0.3,1200),
+  bite:()=>{tone(880,0.08,'square',0.07); setTimeout(()=>tone(1175,0.12,'square',0.07),90);},
+  hook:()=>tone(330,0.15,'triangle',0.15,200),
+  tick:()=>tone(1500,0.02,'square',0.03),
+  catch:()=>[523,659,784,1047].forEach((f,i)=>setTimeout(()=>tone(f,0.18,'triangle',0.12),i*90)),
+  snap:()=>{tone(400,0.35,'sawtooth',0.1,-300); noise(0.1,0.2,3000);},
+  buy:()=>{tone(988,0.08,'square',0.06); setTimeout(()=>tone(1319,0.15,'square',0.06),80);},
+  nope:()=>tone(160,0.2,'square',0.07),
+};
+
+// ================= RENDERER / SCENE =================
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.xr.enabled = true;
+renderer.xr.setReferenceSpaceType('local-floor');
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x8fd3ff);
+scene.fog = new THREE.Fog(0x8fd3ff, 70, 260);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x4a7a3a, 1.2));
+const sun = new THREE.DirectionalLight(0xfff2dd, 1.6); sun.position.set(30,50,20); scene.add(sun);
+
+const rig = new THREE.Group(); rig.position.set(0,0,-6); scene.add(rig);
+const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.05, 600);
+camera.position.y = 1.6; rig.add(camera);
+
+const WATER_Y = -0.55;
+const ISLAND_R = 18;
+const DOCK = {x0:-1.75,x1:1.75,z0:-36,z1:-16};
+
+// ---- water (waves in the vertex shader)
+const waterU = {uTime:{value:0}};
+const waterMat = new THREE.MeshStandardMaterial({color:0x2a9df4,roughness:0.3,metalness:0.05,flatShading:true,transparent:true,opacity:0.93});
+waterMat.onBeforeCompile = sh => {
+  sh.uniforms.uTime = waterU.uTime;
+  sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>',
+    '#include <begin_vertex>\n transformed.z += sin(position.x*0.17+uTime*1.3)*0.10 + cos(position.y*0.21+uTime*0.9)*0.08;');
+};
+const water = new THREE.Mesh(new THREE.PlaneGeometry(600,600,90,90), waterMat);
+water.rotation.x = -Math.PI/2; water.position.y = WATER_Y; scene.add(water);
+const seabed = new THREE.Mesh(new THREE.CircleGeometry(300,32), new THREE.MeshLambertMaterial({color:0x1b5e8a}));
+seabed.rotation.x=-Math.PI/2; seabed.position.y=-6; scene.add(seabed);
+
+// ---- island
+const sand = new THREE.Mesh(new THREE.CylinderGeometry(ISLAND_R+0.5, ISLAND_R+3, 2, 48), new THREE.MeshLambertMaterial({color:0xf2d59b}));
+sand.position.y = -1; scene.add(sand);
+const grass = new THREE.Mesh(new THREE.CylinderGeometry(ISLAND_R-3, ISLAND_R-2.5, 0.12, 48), new THREE.MeshLambertMaterial({color:0x7cc75a}));
+grass.position.y = 0.0; scene.add(grass);
+
+// ---- dock
+const wood = new THREE.MeshLambertMaterial({color:0xa0703c});
+const woodDark = new THREE.MeshLambertMaterial({color:0x6d4c2f});
+for(let z=DOCK.z1; z>DOCK.z0; z-=0.5){
+  const p = new THREE.Mesh(new THREE.BoxGeometry(DOCK.x1-DOCK.x0, 0.12, 0.45), wood);
+  p.position.set(0, -0.02, z-0.25); scene.add(p);
+}
+for(let z=DOCK.z1-1; z>=DOCK.z0; z-=4){
+  for(const x of [DOCK.x0+0.15, DOCK.x1-0.15]){
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,2.2,8), woodDark);
+    post.position.set(x,-0.6,z); scene.add(post);
+  }
+}
+
+// ---- trees, rocks, campfire, distant islands
+function tree(x,z,s=1){
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.15*s,0.25*s,3*s,7), woodDark); trunk.position.y=1.5*s; g.add(trunk);
+  const leafMat = new THREE.MeshLambertMaterial({color: [0x2e7d32,0x388e3c,0x43a047][Math.floor(Math.random()*3)], flatShading:true});
+  for(let i=0;i<3;i++){ const c = new THREE.Mesh(new THREE.ConeGeometry((1.6-i*0.35)*s,1.6*s,8), leafMat); c.position.y=(2.6+i*0.8)*s; g.add(c); }
+  g.position.set(x,0,z); g.rotation.y=Math.random()*6; scene.add(g);
+}
+const treeSpots = [[-10,2],[-12,-4],[-8,8],[2,11],[9,7],[12,-2],[11,-8],[-13,6],[-5,12],[6,-10],[-9,-9],[13,4]];
+treeSpots.forEach(([x,z])=>tree(x,z,rand(0.8,1.25)));
+const rockMat = new THREE.MeshLambertMaterial({color:0x9e9e9e, flatShading:true});
+[[4,4],[-4,6],[15,-6],[-15,-2],[7,13]].forEach(([x,z])=>{ const r=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.4,0.9)),rockMat); r.position.set(x,0.2,z); scene.add(r); });
+const fire = new THREE.Group(); fire.position.set(0,0,3); scene.add(fire);
+for(let i=0;i<4;i++){ const l=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,1,6),woodDark); l.rotation.z=Math.PI/2; l.rotation.y=i*Math.PI/4; l.position.y=0.1; fire.add(l); }
+const flame = new THREE.Mesh(new THREE.ConeGeometry(0.3,0.8,8), new THREE.MeshBasicMaterial({color:0xff9800})); flame.position.y=0.5; fire.add(flame);
+const fireLight = new THREE.PointLight(0xff9800, 3, 8); fireLight.position.y=1; fire.add(fireLight);
+[[-30,0,-95,14],[95,0,-40,20],[-110,0,30,18],[40,0,120,22],[0,0,-170,30]].forEach(([x,y,z,s])=>{
+  const m=new THREE.Mesh(new THREE.ConeGeometry(s,s*0.9,7),new THREE.MeshLambertMaterial({color:0x5c9e4c,flatShading:true})); m.position.set(x,WATER_Y+s*0.3,z); scene.add(m);
+});
+// clouds
+const cloudMat = new THREE.MeshLambertMaterial({color:0xffffff, flatShading:true});
+const clouds = [];
+for(let i=0;i<12;i++){
+  const c=new THREE.Group();
+  for(let j=0;j<4;j++){ const s=new THREE.Mesh(new THREE.IcosahedronGeometry(rand(3,6)),cloudMat); s.position.set(j*4-6,rand(-1,1),rand(-2,2)); c.add(s); }
+  c.position.set(rand(-200,200), rand(35,60), rand(-200,200)); scene.add(c); clouds.push(c);
+}
+
+function walkable(x,z){
+  if(Math.hypot(x,z) <= ISLAND_R-0.6) return true;
+  return x>=DOCK.x0+0.25 && x<=DOCK.x1-0.25 && z>=DOCK.z0+0.3 && z<=DOCK.z1+1;
+}
+function isSolid(x,z){ // can a bobber land here? (land or dock = no)
+  if(Math.hypot(x,z) <= ISLAND_R+1.5) return true;
+  return x>=DOCK.x0-0.2 && x<=DOCK.x1+0.2 && z>=DOCK.z0-0.2 && z<=DOCK.z1;
+}
+
+// ================= HELPERS =================
+function textSprite(text, {size=64, color='#fff', bg='rgba(0,0,0,0.55)', scale=0.5}={}){
+  const c=document.createElement('canvas'), x=c.getContext('2d');
+  x.font=`bold ${size}px system-ui,sans-serif`;
+  const w=Math.ceil(x.measureText(text).width)+size; c.width=w; c.height=size*1.5;
+  x.font=`bold ${size}px system-ui,sans-serif`;
+  if(bg){ x.fillStyle=bg; x.beginPath(); x.roundRect(0,0,w,c.height,size*0.4); x.fill(); }
+  x.fillStyle=color; x.textAlign='center'; x.textBaseline='middle'; x.fillText(text,w/2,c.height/2);
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace;
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:t,depthTest:false,transparent:true}));
+  s.scale.set(scale*w/c.height, scale, 1); s.renderOrder=10; return s;
+}
+
+function makeRod(color){
+  const g = new THREE.Group();
+  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.03,0.3,8), new THREE.MeshLambertMaterial({color:0x222222}));
+  handle.rotation.x = Math.PI/2; handle.position.z = 0.05; g.add(handle);
+  const blankMat = new THREE.MeshLambertMaterial({color});
+  const blank = new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.018,1.5,6), blankMat);
+  blank.rotation.x = Math.PI/2; blank.position.z = -0.85; g.add(blank);
+  const reel = new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,0.04,12), new THREE.MeshLambertMaterial({color:0xbdbdbd}));
+  reel.rotation.z = Math.PI/2; reel.position.set(0,-0.05,-0.05); g.add(reel);
+  const tip = new THREE.Object3D(); tip.position.z = -1.6; g.add(tip);
+  g.userData = {tip, blankMat, reel};
+  return g;
+}
+
+function makeBobber(){
+  const g = new THREE.Group();
+  const top = new THREE.Mesh(new THREE.SphereGeometry(0.09,12,8,0,Math.PI*2,0,Math.PI/2), new THREE.MeshLambertMaterial({color:0xe53935}));
+  const bot = new THREE.Mesh(new THREE.SphereGeometry(0.09,12,8,0,Math.PI*2,Math.PI/2,Math.PI/2), new THREE.MeshLambertMaterial({color:0xffffff}));
+  g.add(top, bot); return g;
+}
+
+function makeLine(){
+  const N=16, geo=new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N*3),3));
+  const l = new THREE.Line(geo, new THREE.LineBasicMaterial({color:0xf5f5f5}));
+  l.frustumCulled=false; l.userData.N=N; return l;
+}
+function updateLine(line,a,b,sag){
+  const arr=line.geometry.attributes.position.array, N=line.userData.N;
+  for(let i=0;i<N;i++){ const t=i/(N-1);
+    arr[i*3]=a.x+(b.x-a.x)*t; arr[i*3+1]=a.y+(b.y-a.y)*t - Math.sin(t*Math.PI)*sag; arr[i*3+2]=a.z+(b.z-a.z)*t; }
+  line.geometry.attributes.position.needsUpdate=true;
+}
+
+function makeFishMesh(f, w){
+  const g = new THREE.Group();
+  const size = clamp(0.14 + Math.cbrt(w)*0.11, 0.14, 0.75);
+  if(f.id==='boot'){
+    const m=new THREE.MeshLambertMaterial({color:f.col});
+    const a=new THREE.Mesh(new THREE.BoxGeometry(0.12,0.25,0.12),m); a.position.y=0.08;
+    const b=new THREE.Mesh(new THREE.BoxGeometry(0.12,0.1,0.28),m); b.position.set(0,-0.05,-0.08);
+    g.add(a,b); return g;
+  }
+  const mat = new THREE.MeshStandardMaterial({color:f.col, roughness:0.35, metalness:0.3,
+    emissive: f.r==='legendary'||f.r==='epic' ? f.col : 0x000000, emissiveIntensity: f.r==='legendary'?0.6:0.2,
+    transparent: f.id==='ghost', opacity: f.id==='ghost'?0.7:1});
+  const body = new THREE.Mesh(new THREE.SphereGeometry(1,16,12), mat);
+  const flat = f.id==='ray' ? [1,0.18,1] : f.id==='puffer' ? [0.8,0.8,0.8] : [1,0.5,0.3];
+  body.scale.set(flat[0]*size, flat[1]*size, flat[2]*size); g.add(body);
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(size*0.45,size*0.6,4), mat);
+  tail.rotation.z = Math.PI/2; tail.position.x = size*1.15; tail.scale.z=0.3; g.add(tail);
+  if(f.id==='sword'){ const n=new THREE.Mesh(new THREE.ConeGeometry(size*0.06,size*1.2,6),mat); n.rotation.z=-Math.PI/2; n.position.x=-size*1.5; g.add(n); }
+  const eyeM = new THREE.MeshBasicMaterial({color:0x111111});
+  for(const s of [1,-1]){ const e=new THREE.Mesh(new THREE.SphereGeometry(size*0.08,8,6),eyeM); e.position.set(-size*0.6,size*0.12,s*flat[2]*size*0.85); g.add(e); }
+  return g;
+}
+
+function makeHat(id){
+  const g = new THREE.Group();
+  if(id==='cap'){
+    const m=new THREE.MeshLambertMaterial({color:0x1e88e5});
+    const c=new THREE.Mesh(new THREE.SphereGeometry(0.23,12,8,0,Math.PI*2,0,Math.PI/2),m);
+    const b=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.03,0.22),m); b.position.set(0,0,-0.25);
+    g.add(c,b);
+  } else if(id==='bucket'){
+    const m=new THREE.MeshLambertMaterial({color:0xdcc48e});
+    const c=new THREE.Mesh(new THREE.CylinderGeometry(0.17,0.23,0.18,14),m); c.position.y=0.08;
+    const b=new THREE.Mesh(new THREE.CylinderGeometry(0.34,0.34,0.02,16),m);
+    g.add(c,b);
+  } else if(id==='pirate'){
+    const m=new THREE.MeshLambertMaterial({color:0x212121});
+    const c=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.24,0.18,14),m); c.position.y=0.08;
+    const b=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.16,0.12),m); b.position.y=0.1;
+    const sk=new THREE.Mesh(new THREE.SphereGeometry(0.04,8,6),new THREE.MeshBasicMaterial({color:0xffffff})); sk.position.set(0,0.12,-0.07);
+    g.add(c,b,sk);
+  } else if(id==='crown'){
+    const m=new THREE.MeshStandardMaterial({color:0xffc107,metalness:0.8,roughness:0.25});
+    const c=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,0.12,14,1,true),m); c.position.y=0.06; g.add(c);
+    for(let i=0;i<6;i++){ const s=new THREE.Mesh(new THREE.ConeGeometry(0.045,0.12,4),m); const a=i/6*Math.PI*2; s.position.set(Math.sin(a)*0.2,0.17,Math.cos(a)*0.2); g.add(s); }
+  }
+  return g;
+}
+
+function makeAvatar(name,color,hat){
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.28,0.6,4,10), new THREE.MeshLambertMaterial({color}));
+  body.position.y = 0.75; g.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.22,16,12), new THREE.MeshLambertMaterial({color:0xffd9b3}));
+  head.position.y = 1.45; g.add(head);
+  const eyeM=new THREE.MeshBasicMaterial({color:0x111111});
+  for(const s of [-1,1]){ const e=new THREE.Mesh(new THREE.SphereGeometry(0.035,8,6),eyeM); e.position.set(s*0.08,1.5,-0.19); g.add(e); }
+  const hatHolder = new THREE.Group(); hatHolder.position.y = 1.6; g.add(hatHolder); hatHolder.add(makeHat(hat));
+  const label = textSprite(name,{size:48,scale:0.28}); label.position.y = 2.05; g.add(label);
+  const rod = makeRod(0x8d6e63); rod.position.set(0.32,0.95,-0.15); g.add(rod);
+  g.userData = {body, hatHolder, label, rod, hat, name, color};
+  return g;
+}
+
+// ================= BOARDS (world-space UI usable by mouse and VR laser) =================
+class Board {
+  constructor(w,h,cw,ch,draw){
+    this.cw=cw; this.ch=ch; this.canvas=document.createElement('canvas'); this.canvas.width=cw; this.canvas.height=ch;
+    this.ctx=this.canvas.getContext('2d'); this.tex=new THREE.CanvasTexture(this.canvas); this.tex.colorSpace=THREE.SRGBColorSpace;
+    this.mesh=new THREE.Mesh(new THREE.PlaneGeometry(w,h), new THREE.MeshBasicMaterial({map:this.tex}));
+    this.mesh.userData.board=this; this.buttons=[]; this.hover=null; this.drawFn=draw;
+  }
+  redraw(){ this.buttons=[]; this.drawFn(this, this.ctx); this.tex.needsUpdate=true; }
+  btn(id,x,y,w,h,fn){ this.buttons.push({id,x,y,w,h,fn}); }
+  hit(uv){ const x=uv.x*this.cw, y=(1-uv.y)*this.ch; return this.buttons.find(b=>x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h); }
+  setHover(id){ if(id!==this.hover){ this.hover=id; this.redraw(); } }
+}
+function placeBoard(board,x,z,ry,title){
+  const g=new THREE.Group(); g.position.set(x,0,z); g.rotation.y=ry;
+  board.mesh.position.set(0,2.0,0.06); g.add(board.mesh);
+  const back=new THREE.Mesh(new THREE.BoxGeometry(2.6,3.4,0.1), woodDark); back.position.y=2.0; g.add(back);
+  for(const s of [-1,1]){ const p=new THREE.Mesh(new THREE.BoxGeometry(0.15,2.2,0.15),woodDark); p.position.set(s*1.1,0.6,0); g.add(p); }
+  const roof=new THREE.Mesh(new THREE.BoxGeometry(2.9,0.15,0.6), new THREE.MeshLambertMaterial({color:0xc62828})); roof.position.set(0,3.8,0.15); g.add(roof);
+  scene.add(g);
+}
+function rr(c,x,y,w,h,r,fill){ c.fillStyle=fill; c.beginPath(); c.roundRect(x,y,w,h,r); c.fill(); }
+
+let shopTab='rods', shopMsg='Point and click to buy or equip';
+const shopBoard = new Board(2.4,3.2,600,800,(b,c)=>{
+  const W=b.cw;
+  rr(c,0,0,W,b.ch,0,'#5d4037'); rr(c,14,14,W-28,b.ch-28,18,'#fff3e0');
+  c.fillStyle='#bf360c'; c.font='bold 54px system-ui'; c.textAlign='center'; c.fillText('TACKLE SHOP',W/2,82);
+  c.fillStyle='#333'; c.font='bold 34px system-ui'; c.fillText('🪙 '+save.coins,W/2,128);
+  const tabs=[['rods','Rods'],['bait','Bait'],['hats','Hats']]; const tw=(W-60)/3;
+  tabs.forEach(([id,lbl],i)=>{ const x=30+i*tw, y=150;
+    rr(c,x+4,y,tw-8,60,14, shopTab===id?'#ff7043':(b.hover==='tab'+id?'#ffccbc':'#ffe0b2'));
+    c.fillStyle=shopTab===id?'#fff':'#5d4037'; c.font='bold 30px system-ui'; c.fillText(lbl,x+tw/2,y+41);
+    b.btn('tab'+id,x,y,tw,60,()=>{shopTab=id; shopMsg=''; b.redraw(); sfx.tick();});
+  });
+  const list = shopTab==='rods'?RODS:shopTab==='bait'?BAITS:HATS;
+  const ownKey = shopTab==='rods'?'rods':shopTab==='bait'?'baits':'hats';
+  const selKey = shopTab==='rods'?'rod':shopTab==='bait'?'bait':'hat';
+  list.forEach((it,i)=>{ const x=30,y=230+i*100,w=W-60,h=88; const id='item'+it.id;
+    const owned=save[ownKey].includes(it.id), sel=save[selKey]===it.id;
+    rr(c,x,y,w,h,14, sel?'#c8e6c9':(b.hover===id?'#ffe0b2':'#fff8e1'));
+    c.textAlign='left'; c.fillStyle='#3e2723'; c.font='bold 32px system-ui'; c.fillText(it.name,x+18,y+38);
+    c.font='22px system-ui'; c.fillStyle='#6d4c41';
+    const stat = shopTab==='rods'?`Cast ${it.cast}m · Power x${it.power}`:shopTab==='bait'?`Luck x${it.luck} · Bites faster x${it.speed}`:'Show off to your friends';
+    c.fillText(stat,x+18,y+70);
+    c.textAlign='right'; c.font='bold 28px system-ui';
+    c.fillStyle= sel?'#2e7d32': owned?'#1565c0': (save.coins>=it.price?'#e65100':'#9e9e9e');
+    c.fillText(sel?'EQUIPPED':owned?'EQUIP':'🪙 '+it.price, x+w-18, y+54);
+    b.btn(id,x,y,w,h,()=>{
+      if(owned){ save[selKey]=it.id; shopMsg='Equipped '+it.name; sfx.tick(); }
+      else if(save.coins>=it.price){ save.coins-=it.price; save[ownKey].push(it.id); save[selKey]=it.id; shopMsg='Bought '+it.name+'!'; sfx.buy(); }
+      else { shopMsg='Need '+(it.price-save.coins)+' more coins'; sfx.nope(); }
+      persist(); gearChanged(); b.redraw();
+    });
+  });
+  c.textAlign='center'; c.fillStyle='#bf360c'; c.font='bold 26px system-ui'; c.fillText(shopMsg,W/2,b.ch-36);
+});
+const dexBoard = new Board(2.4,3.2,600,800,(b,c)=>{
+  const W=b.cw;
+  rr(c,0,0,W,b.ch,0,'#5d4037'); rr(c,14,14,W-28,b.ch-28,18,'#e3f2fd');
+  const caught=FISH.filter(f=>save.dex[f.id]).length;
+  c.fillStyle='#0d47a1'; c.font='bold 50px system-ui'; c.textAlign='center'; c.fillText('FISHDEX',W/2,76);
+  c.font='bold 28px system-ui'; c.fillStyle='#333'; c.fillText(`${caught} / ${FISH.length} found`,W/2,116);
+  FISH.forEach((f,i)=>{ const y=140+i*42, d=save.dex[f.id];
+    rr(c,30,y,W-60,38,10, i%2?'#ffffffaa':'#bbdefb88');
+    c.fillStyle=RAR[f.r].c; c.beginPath(); c.arc(54,y+19,11,0,7); c.fill();
+    c.textAlign='left'; c.font='bold 22px system-ui'; c.fillStyle='#222';
+    c.fillText(d?f.name:'???',76,y+27);
+    c.font='18px system-ui'; c.fillStyle=RAR[f.r].c; c.fillText(RAR[f.r].label,290,y+26);
+    c.textAlign='right'; c.fillStyle='#333';
+    c.fillText(d?`x${d.n} · best ${fmtW(d.best)}`:(f.minD?`cast ${f.minD}m+`:''),W-42,y+26);
+  });
+});
+placeBoard(shopBoard,-4.6,-13.2,0.45);
+placeBoard(dexBoard,4.6,-13.2,-0.45);
+const boardMeshes=[shopBoard.mesh,dexBoard.mesh];
+const aOrAn=n=>(/^[aeiou]/i.test(n)?'an ':'a ')+n;
+function fmtW(w){ return w>=10?w.toFixed(0)+'kg':w>=1?w.toFixed(1)+'kg':(w*1000).toFixed(0)+'g'; }
+
+// ================= LOCAL PLAYER ROD / FISHING =================
+let rod = makeRod(curRod().col);
+function attachRodToCamera(){ camera.add(rod); rod.position.set(0.24,-0.28,-0.32); rod.rotation.set(0.45,0.08,0); }
+attachRodToCamera();
+const line = makeLine(); scene.add(line); line.visible=false;
+const bobber = makeBobber(); scene.add(bobber); bobber.visible=false;
+const bang = textSprite('!',{size:96,color:'#fff',bg:'#e53935',scale:0.5}); bang.visible=false; scene.add(bang);
+
+const F = {state:'idle', charge:0, chargeDir:1, reeling:false, from:new THREE.Vector3(), to:new THREE.Vector3(), t:0, castDist:0,
+  timer:0, fish:null, weight:0, dist:0, tension:0, pulling:false, phase:0, tickT:0, showObj:null, landedOk:true};
+
+const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), tmpQ = new THREE.Quaternion();
+function rodTipWorld(out){ return rod.userData.tip.getWorldPosition(out); }
+
+function gearChanged(){
+  rod.userData.blankMat.color.setHex(curRod().col);
+  updateHud();
+  drawWrist();
+  sendState(true);
+}
+
+function pickFish(dist){
+  const luck = curBait().luck;
+  const mult = {junk:1/luck, common:1, uncommon:Math.sqrt(luck), rare:luck, epic:Math.pow(luck,1.3), legendary:Math.pow(luck,1.5)};
+  const pool = FISH.filter(f=>f.minD<=dist);
+  let total=0; const ws = pool.map(f=>{ const w = RAR[f.r].w*mult[f.r] / pool.filter(g=>g.r===f.r).length; total+=w; return w; });
+  let r=Math.random()*total;
+  for(let i=0;i<pool.length;i++){ r-=ws[i]; if(r<=0) return pool[i]; }
+  return pool[0];
+}
+
+function aimInfo(){
+  // returns {origin, dir, ctrl}
+  if(renderer.xr.isPresenting && activeCtrl){
+    const o = new THREE.Vector3().setFromMatrixPosition(activeCtrl.matrixWorld);
+    const d = new THREE.Vector3(0,0,-1).applyQuaternion(activeCtrl.getWorldQuaternion(tmpQ));
+    return {origin:o, dir:d, ctrl:activeCtrl};
+  }
+  const o = camera.getWorldPosition(new THREE.Vector3());
+  const d = camera.getWorldDirection(new THREE.Vector3());
+  return {origin:o, dir:d, ctrl:null};
+}
+const raycaster = new THREE.Raycaster(); raycaster.far = 9;
+function boardHit(aim){
+  raycaster.set(aim.origin, aim.dir);
+  const h = raycaster.intersectObjects(boardMeshes,false)[0];
+  if(!h) return null;
+  return {board:h.object.userData.board, uv:h.uv, dist:h.distance};
+}
+
+let pressUsedByBoard=false;
+function actionDown(fromRodHand=true){
+  audio();
+  const aim = aimInfo();
+  if(F.state==='idle' || !fromRodHand){
+    const bh = boardHit(aim);
+    if(bh){ const b=bh.board.hit(bh.uv); if(b) b.fn(); pressUsedByBoard=true; return; }
+  }
+  if(!fromRodHand) return;
+  pressUsedByBoard=false;
+  if(F.state==='idle'){ F.state='charging'; F.charge=0; F.chargeDir=1; setStatus('Release to cast!'); }
+  else if(F.state==='waiting'){ endFishing('Reeled in.'); }
+  else if(F.state==='nibble'){ hookFish(); }
+  else if(F.state==='fighting'){ F.reeling=true; }
+}
+function actionUp(){
+  if(pressUsedByBoard){ pressUsedByBoard=false; return; }
+  if(F.state==='charging') castLine();
+  else if(F.state==='fighting') F.reeling=false;
+}
+
+function castLine(){
+  const aim = aimInfo();
+  const dir = aim.dir.clone(); dir.y=0;
+  if(dir.lengthSq()<0.01) camera.getWorldDirection(dir), dir.y=0;
+  dir.normalize();
+  const dist = Math.max(3, F.charge*curRod().cast);
+  F.castDist = dist;
+  rodTipWorld(F.from);
+  F.to.set(F.from.x+dir.x*dist, WATER_Y+0.02, F.from.z+dir.z*dist);
+  F.landedOk = !isSolid(F.to.x, F.to.z);
+  if(!F.landedOk){ F.to.y = 0.05; }
+  F.t=0; F.state='flying'; bobber.visible=true; line.visible=true;
+  sfx.cast(); buzz('right',0.4,60);
+  setStatus(''); showBar(null);
+}
+
+function hookFish(){
+  F.state='fighting'; F.dist=F.castDist; F.tension=0.15; F.pulling=true; F.phase=rand(0.5,1.2); F.reeling=true;
+  bang.visible=false; sfx.hook(); buzz('right',0.8,120);
+  setStatus('Fish on! Hold to reel, let go when it pulls!');
+}
+
+function endFishing(msg){
+  F.state='idle'; F.reeling=false; bobber.visible=false; line.visible=false; bang.visible=false; F.fish=null;
+  setStatus(msg||'', 2.5); showBar(null);
+}
+
+function landFish(){
+  const f=F.fish, w=F.weight;
+  const k=(w-f.min)/Math.max(0.0001,f.max-f.min);
+  const coins=Math.round(f.coin*(1+k));
+  save.coins+=coins;
+  const d=save.dex[f.id]||{n:0,best:0}; const isNew=!save.dex[f.id]; const isBest=w>d.best;
+  d.n++; d.best=Math.max(d.best,w); save.dex[f.id]=d; persist();
+  sfx.catch(); buzz('right',1,200);
+  bobber.visible=false; line.visible=false; showBar(null);
+  // show the catch in front of the player
+  const show=new THREE.Group();
+  const fm=makeFishMesh(f,w); show.add(fm);
+  const lbl=textSprite(`${f.name} ${fmtW(w)}  +${coins}🪙`,{size:56,color:'#fff',bg:RAR[f.r].c,scale:0.12}); lbl.position.y=0.28; show.add(lbl);
+  if(isNew){ const nl=textSprite('NEW!',{size:56,color:'#fff',bg:'#e53935',scale:0.08}); nl.position.y=0.4; show.add(nl); }
+  show.position.set(0,-0.05,-0.85); show.scale.setScalar(0.6); camera.add(show);
+  F.showObj=show; F.timer=3; F.state='showing';
+  setStatus(`${isNew?'New fish! ':''}${RAR[f.r].label} ${f.name}${isBest&&!isNew?' (personal best!)':''}`,3);
+  addFeed(`You caught ${aOrAn(f.name)} (${fmtW(w)})`, RAR[f.r].c);
+  send({t:'catch', id:net.myId, name:save.name, fish:f.name, r:f.r, w});
+  updateHud(); shopBoard.redraw(); dexBoard.redraw(); drawWrist();
+}
+
+const ripples=[];
+function ripple(p,big=1){
+  const m=new THREE.Mesh(new THREE.RingGeometry(0.1,0.16,24), new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.8,side:THREE.DoubleSide}));
+  m.rotation.x=-Math.PI/2; m.position.set(p.x,WATER_Y+0.06,p.z); scene.add(m); ripples.push({m,t:0,big});
+}
+
+function updateFishing(dt,time){
+  const tip = rodTipWorld(tmpV);
+  // rod charge wobble (desktop only, visual)
+  if(F.state==='charging'){
+    F.charge += F.chargeDir*dt/1.1;
+    if(F.charge>=1){F.charge=1;F.chargeDir=-1;} if(F.charge<=0){F.charge=0;F.chargeDir=1;}
+    showBar(F.charge,'#ffca28',`Power ${Math.round(F.charge*curRod().cast)}m`);
+  }
+  if(F.state==='flying'){
+    F.t += dt/0.9; const k=Math.min(1,F.t);
+    const h = 1.5 + F.castDist*0.12;
+    bobber.position.lerpVectors(F.from,F.to,k); bobber.position.y += Math.sin(k*Math.PI)*h;
+    if(k>=1){
+      if(!F.landedOk){ endFishing('Oops, that landed on solid ground. Aim at the water!'); return; }
+      sfx.splash(); ripple(bobber.position);
+      F.state='waiting'; F.timer=rand(2.5,8)/curBait().speed; setStatus('Waiting for a bite...');
+    }
+  }
+  if(F.state==='waiting' || F.state==='nibble'){
+    const dip = F.state==='nibble' ? -0.12+Math.sin(time*25)*0.04 : Math.sin(time*2)*0.03;
+    bobber.position.set(F.to.x, WATER_Y+0.04+dip, F.to.z);
+    if(Math.random()<dt*0.6) ripple(bobber.position,0.5);
+    F.timer -= dt;
+    if(F.state==='waiting' && F.timer<=0){
+      F.state='nibble'; F.timer=1.4; F.fish=pickFish(F.castDist);
+      F.weight = F.fish.min + (F.fish.max-F.fish.min)*Math.pow(Math.random(),2.2);
+      bang.visible=true; sfx.bite(); buzz('right',0.6,150); ripple(bobber.position);
+      setStatus('BITE! Click / trigger now!');
+    } else if(F.state==='nibble'){
+      bang.position.set(bobber.position.x, WATER_Y+0.9, bobber.position.z);
+      bang.scale.set(0.5+Math.sin(time*20)*0.05,0.5+Math.sin(time*20)*0.05,1);
+      if(F.timer<=0){ bang.visible=false; F.state='waiting'; F.timer=rand(2,6)/curBait().speed; setStatus('Missed it... wait for another bite'); sfx.nope(); }
+    }
+    // reel in automatically if you walk too far away
+    if(Math.hypot(tip.x-F.to.x, tip.z-F.to.z) > curRod().cast+12) endFishing('Line too long, reeled in.');
+  }
+  if(F.state==='fighting'){
+    const f=F.fish, pow=curRod().power;
+    F.phase-=dt;
+    if(F.phase<=0){ F.pulling=!F.pulling; F.phase = F.pulling ? rand(0.6,1.5)*(0.6+f.str*0.7) : rand(0.8,2.0)/(0.5+f.str); if(F.pulling){ buzz('right',0.5,100); } }
+    const reelSpeed = 2.6*pow/(0.7+f.str*0.6);
+    if(F.reeling){
+      F.dist -= dt*reelSpeed*(F.pulling?0.3:1);
+      F.tension += dt*(F.pulling ? 1.9*f.str/pow : 0.1/pow);
+      F.tickT-=dt; if(F.tickT<=0){ sfx.tick(); F.tickT=0.08; }
+      if(F.pulling) buzz('right',0.25,30);
+    } else {
+      F.tension -= dt*(F.pulling?0.25:0.55);
+      if(F.pulling) F.dist += dt*1.6*f.str;
+    }
+    F.tension = clamp(F.tension,0,1.2);
+    const tcol = F.tension>0.8?'#e53935':F.tension>0.55?'#ffa000':'#66bb6a';
+    showBar(Math.min(1,F.tension), tcol, F.pulling?'IT\'S PULLING! ease off':`Tension · ${F.dist.toFixed(1)}m to go`);
+    setStatus(F.pulling?'It\'s pulling!':'Reel it in!');
+    // bobber travels in toward the rod tip
+    const k = clamp(F.dist/F.castDist,0,1.4);
+    const sx = tip.x + (F.to.x-tip.x)*k, sz = tip.z + (F.to.z-tip.z)*k;
+    const jit = F.pulling?0.12:0.03;
+    bobber.position.set(sx+rand(-jit,jit), WATER_Y+0.02+(F.pulling?rand(-0.08,0.02):0), sz+rand(-jit,jit));
+    if(F.pulling && Math.random()<dt*6) ripple(bobber.position,0.6);
+    if(F.tension>=1){ sfx.snap(); buzz('right',1,250); endFishing('SNAP! The line broke. Ease off when it pulls.'); return; }
+    if(F.dist>F.castDist+6){ endFishing('It swam away!'); sfx.nope(); return; }
+    if(F.dist<=1){ landFish(); return; }
+    rod.rotation.z = Math.sin(time*30)*0.02*(F.pulling?3:1);
+  } else rod.rotation.z = 0;
+  if(F.state==='showing'){
+    F.timer-=dt; if(F.showObj){ F.showObj.rotation.y += dt*1.5; }
+    if(F.timer<=0){ camera.remove(F.showObj); F.showObj=null; F.state='idle'; F.fish=null; setStatus(''); }
+  }
+  if(line.visible){ updateLine(line, tip, bobber.position, F.state==='fighting'? 0.05*(1-Math.min(1,F.tension)) : F.state==='flying'?0.1:0.6); }
+}
+
+// ================= HUD =================
+let statusTimer=0;
+function setStatus(msg,sec=0){ $('status').textContent=msg; statusTimer=sec; wrist.status=msg; drawWrist(); }
+let barState=null;
+function showBar(v,col,label){
+  if(v===null||v===undefined){ $('barWrap').style.display='none'; barState=null; drawWrist(); return; }
+  $('barWrap').style.display='block'; $('bar').style.width=(v*100)+'%'; $('bar').style.background=col; $('barLbl').textContent=label;
+  barState={v,col,label};
+}
+function updateHud(){
+  $('coins').textContent='🪙 '+save.coins;
+  $('gear').textContent=`${curRod().name} · ${curBait().name} · ${HATS.find(h=>h.id===save.hat).name}`;
+}
+const feedItems=[];
+function addFeed(text,color='#fff'){
+  feedItems.unshift({text,color}); if(feedItems.length>5) feedItems.pop();
+  $('feed').innerHTML=''; feedItems.forEach(f=>{ const d=document.createElement('div'); d.textContent=f.text; d.style.borderLeft='5px solid '+f.color; $('feed').appendChild(d); });
+  drawWrist();
+}
+
+// VR wrist panel
+const wrist = {status:''};
+const wristBoard = new Board(0.2,0.12,500,300,(b,c)=>{
+  rr(c,0,0,500,300,30,'rgba(0,0,0,0.75)');
+  c.fillStyle='#ffca28'; c.font='bold 44px system-ui'; c.textAlign='left'; c.fillText('🪙 '+save.coins,24,58);
+  c.textAlign='right'; c.fillStyle='#fff'; c.font='bold 30px system-ui'; c.fillText(net.code?('Room '+net.code):'Solo',476,54);
+  c.textAlign='left'; c.font='bold 28px system-ui'; c.fillStyle='#fff';
+  const st=(wrist.status||'').slice(0,34); c.fillText(st,24,108);
+  if(barState){ rr(c,24,128,452,34,17,'#ffffff33'); rr(c,24,128,Math.max(34,452*barState.v),34,17,barState.col); c.font='bold 22px system-ui'; c.fillStyle='#fff'; c.fillText(barState.label.slice(0,38),36,153); }
+  c.font='22px system-ui'; c.fillStyle='#ddd';
+  feedItems.slice(0,3).forEach((f,i)=>c.fillText(f.text.slice(0,40),24,206+i*30));
+});
+wristBoard.mesh.material.transparent=true;
+let wristDirty=true, wristT=0;
+function drawWrist(){ wristDirty=true; }
+
+// ================= INPUT: DESKTOP =================
+const keys={};
+addEventListener('keydown',e=>{ keys[e.code]=true; });
+addEventListener('keyup',e=>{ keys[e.code]=false; });
+let yaw=0, pitch=0, locked=false, gameStarted=false;
+renderer.domElement.addEventListener('mousedown',e=>{
+  if(!gameStarted||renderer.xr.isPresenting) return;
+  if(!locked && !isTouch){ renderer.domElement.requestPointerLock?.(); return; }
+  if(e.button===0) actionDown(true);
+});
+addEventListener('mouseup',e=>{ if(locked && e.button===0) actionUp(); });
+document.addEventListener('pointerlockchange',()=>{ locked = document.pointerLockElement===renderer.domElement; if(!locked && F.state==='charging'){ F.state='idle'; showBar(null);} });
+addEventListener('mousemove',e=>{ if(!locked) return; yaw-=e.movementX*0.0022; pitch=clamp(pitch-e.movementY*0.0022,-1.4,1.4); });
+
+// ================= INPUT: TOUCH =================
+const isTouch = matchMedia('(pointer:coarse)').matches;
+const joy={x:0,y:0,id:null,ox:0,oy:0};
+if(isTouch){
+  const J=$('joy'), K=$('joyK');
+  J.addEventListener('pointerdown',e=>{ joy.id=e.pointerId; const r=J.getBoundingClientRect(); joy.ox=r.left+60; joy.oy=r.top+60; J.setPointerCapture(e.pointerId); });
+  J.addEventListener('pointermove',e=>{ if(e.pointerId!==joy.id) return; let dx=e.clientX-joy.ox, dy=e.clientY-joy.oy; const l=Math.hypot(dx,dy); if(l>50){dx*=50/l;dy*=50/l;} joy.x=dx/50; joy.y=dy/50; K.style.left=(40+dx)+'px'; K.style.top=(40+dy)+'px'; });
+  const jEnd=e=>{ if(e.pointerId!==joy.id) return; joy.id=null; joy.x=joy.y=0; K.style.left='40px'; K.style.top='40px'; };
+  J.addEventListener('pointerup',jEnd); J.addEventListener('pointercancel',jEnd);
+  const L=$('look'); let lp=null;
+  L.addEventListener('pointerdown',e=>{ lp={x:e.clientX,y:e.clientY,id:e.pointerId}; L.setPointerCapture(e.pointerId); });
+  L.addEventListener('pointermove',e=>{ if(!lp||e.pointerId!==lp.id) return; yaw-=(e.clientX-lp.x)*0.005; pitch=clamp(pitch-(e.clientY-lp.y)*0.005,-1.4,1.4); lp.x=e.clientX; lp.y=e.clientY; });
+  L.addEventListener('pointerup',()=>lp=null); L.addEventListener('pointercancel',()=>lp=null);
+  const A=$('actBtn');
+  A.addEventListener('pointerdown',e=>{ e.preventDefault(); actionDown(true); });
+  A.addEventListener('pointerup',e=>{ e.preventDefault(); actionUp(); });
+  A.addEventListener('pointercancel',()=>actionUp());
+}
+
+// ================= INPUT: VR =================
+const ctrlFactory = new XRControllerModelFactory();
+const controllers=[], grips=[];
+let activeCtrl=null, rightCtrl=null, leftGrip=null;
+const sources={left:null,right:null};
+for(let i=0;i<2;i++){
+  const c = renderer.xr.getController(i); rig.add(c); controllers.push(c);
+  const g = renderer.xr.getControllerGrip(i); g.add(ctrlFactory.createControllerModel(g)); rig.add(g); grips.push(g);
+  const laser = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(0,0,-1)]), new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:0.7}));
+  laser.visible=false; c.add(laser); c.userData.laser=laser;
+  c.addEventListener('connected',e=>{
+    const hand=e.data.handedness; c.userData.hand=hand; sources[hand]=e.data;
+    if(hand==='right'){ rightCtrl=c; g.add(rod); rod.position.set(0,0,0.05); rod.rotation.set(0.35,0,0); }
+    if(hand==='left'){ leftGrip=g; g.add(wristBoard.mesh); wristBoard.mesh.position.set(0,0.05,0.07); wristBoard.mesh.rotation.set(-1.0,0,0); }
+  });
+  c.addEventListener('disconnected',()=>{ sources[c.userData.hand]=null; });
+  c.addEventListener('selectstart',()=>{ activeCtrl=c; actionDown(c.userData.hand!=='left'); });
+  c.addEventListener('selectend',()=>{ if(c.userData.hand!=='left') actionUp(); else pressUsedByBoard=false; });
+}
+function buzz(hand,intensity,ms){
+  const s=sources[hand]; const a=s && s.gamepad && s.gamepad.hapticActuators && s.gamepad.hapticActuators[0];
+  if(a && a.pulse){ try{ a.pulse(intensity,ms); }catch(e){} }
+}
+renderer.xr.addEventListener('sessionstart',()=>{ $('hud').style.display='none'; $('start').style.display='none'; gameStarted=true; pitch=0; camera.rotation.set(0,0,0); });
+renderer.xr.addEventListener('sessionend',()=>{ attachRodToCamera(); $('hud').style.display='block'; scene.add(wristBoard.mesh); wristBoard.mesh.visible=false; camera.position.set(0,1.6,0); });
+let snapLatch=false;
+
+// ================= MOVEMENT =================
+const up = new THREE.Vector3(0,1,0);
+function tryMove(dx,dz){
+  const cp = camera.getWorldPosition(tmpV2);
+  if(walkable(cp.x+dx,cp.z+dz)){ rig.position.x+=dx; rig.position.z+=dz; }
+  else if(walkable(cp.x+dx,cp.z)) rig.position.x+=dx;
+  else if(walkable(cp.x,cp.z+dz)) rig.position.z+=dz;
+}
+function updateMovement(dt){
+  let mx=0, mz=0;
+  if(renderer.xr.isPresenting){
+    const L=sources.left?.gamepad, R=sources.right?.gamepad;
+    if(L && L.axes.length>=4){ mx=L.axes[2]; mz=L.axes[3]; }
+    if(Math.abs(mx)<0.15) mx=0; if(Math.abs(mz)<0.15) mz=0;
+    if(R && R.axes.length>=4){
+      const rx=R.axes[2];
+      if(Math.abs(rx)>0.7 && !snapLatch){
+        snapLatch=true; const ang = rx>0 ? -Math.PI/6 : Math.PI/6;
+        const cp=camera.getWorldPosition(new THREE.Vector3());
+        rig.position.sub(cp).applyAxisAngle(up,ang).add(cp); rig.rotation.y+=ang;
+      } else if(Math.abs(rx)<0.3) snapLatch=false;
+    }
+    const dir = camera.getWorldDirection(new THREE.Vector3()); dir.y=0; dir.normalize();
+    const right = new THREE.Vector3(-dir.z,0,dir.x);
+    const sp=2.8*dt;
+    tryMove((right.x*mx - dir.x*mz)*sp, (right.z*mx - dir.z*mz)*sp);
+  } else {
+    rig.rotation.y = yaw; camera.rotation.set(pitch,0,0,'YXZ');
+    if(keys.KeyW||keys.ArrowUp) mz-=1; if(keys.KeyS||keys.ArrowDown) mz+=1;
+    if(keys.KeyA||keys.ArrowLeft) mx-=1; if(keys.KeyD||keys.ArrowRight) mx+=1;
+    mx+=joy.x; mz+=joy.y;
+    const l=Math.hypot(mx,mz); if(l>1){mx/=l;mz/=l;}
+    const sp=(keys.ShiftLeft?5.5:3.5)*dt;
+    const s=Math.sin(yaw), c=Math.cos(yaw);
+    tryMove((mx*c + mz*s)*sp, (-mx*s + mz*c)*sp);
+  }
+}
+
+// ================= MULTIPLAYER (PeerJS) =================
+const PREFIX='fishyfriends-af-';
+const net = {peer:null, isHost:false, conns:new Map(), code:null, myId:'local', hostConn:null};
+const players = new Map(); // id -> {av, bob, line, target, ry, tip, b, last}
+function randCode(){ const A='ABCDEFGHJKMNPQRSTUVWXYZ'; let s=''; for(let i=0;i<4;i++) s+=A[Math.floor(Math.random()*A.length)]; return s; }
+
+function hostGame(onReady,onErr,tries=0){
+  const code=randCode();
+  const peer=new Peer(PREFIX+code); net.peer=peer; net.isHost=true;
+  peer.on('open',id=>{ net.myId=id; net.code=code; onReady(code); });
+  peer.on('connection',c=>setupConn(c));
+  peer.on('error',e=>{
+    if(e.type==='unavailable-id' && tries<4){ peer.destroy(); hostGame(onReady,onErr,tries+1); }
+    else if(!net.code) onErr('Could not host: '+e.type);
+    else addFeed('Network: '+e.type,'#e53935');
+  });
+  peer.on('disconnected',()=>{ try{peer.reconnect();}catch(e){} });
+}
+function joinGame(code,onReady,onErr){
+  const peer=new Peer(); net.peer=peer; net.isHost=false;
+  let done=false;
+  peer.on('open',id=>{
+    net.myId=id;
+    const c=peer.connect(PREFIX+code,{reliable:true}); net.hostConn=c;
+    c.on('open',()=>{ done=true; net.code=code; onReady(code); });
+    setupConn(c);
+    setTimeout(()=>{ if(!done) onErr('Could not reach room '+code+'. Check the code.'); },12000);
+  });
+  peer.on('error',e=>{ if(!done) onErr(e.type==='peer-unavailable'?'No game found with code '+code:'Could not join: '+e.type); else addFeed('Network: '+e.type,'#e53935'); });
+}
+function setupConn(c){
+  c.on('open',()=>{ net.conns.set(c.peer,c); c.send({t:'hello',id:net.myId,name:save.name}); sendState(true); });
+  c.on('data',d=>onData(d,c));
+  c.on('close',()=>{
+    net.conns.delete(c.peer);
+    if(net.isHost){ removePlayer(c.peer); broadcast({t:'bye',id:c.peer}); }
+    else { addFeed('Lost connection to the host','#e53935'); [...players.keys()].forEach(removePlayer); }
+  });
+}
+function broadcast(msg,except){ for(const [id,c] of net.conns){ if(c!==except && c.open){ try{c.send(msg);}catch(e){} } } }
+function send(msg){ if(!net.peer) return; if(net.isHost) broadcast(msg); else if(net.hostConn&&net.hostConn.open){ try{net.hostConn.send(msg);}catch(e){} } }
+function onData(d,c){
+  if(!d||typeof d!=='object'||!d.t) return;
+  if(net.isHost && d.id) broadcast(d,c); // relay to everyone else
+  if(d.id===net.myId) return;
+  if(d.t==='hello'){ addFeed(`${String(d.name||'Someone').slice(0,12)} joined`,'#29b6f6'); sfx.tick(); }
+  else if(d.t==='s') applyState(d);
+  else if(d.t==='catch'){ addFeed(`${String(d.name||'Someone').slice(0,12)} caught ${aOrAn(String(d.fish))} (${fmtW(+d.w||0)})`, RAR[d.r]?.c||'#fff'); if(d.r==='legendary'||d.r==='epic') sfx.bite(); }
+  else if(d.t==='bye'){ removePlayer(d.id); }
+}
+function applyState(d){
+  let p=players.get(d.id);
+  const name=String(d.name||'Fisher').slice(0,12), color=/^#[0-9a-f]{6}$/i.test(d.color)?d.color:'#ff7043', hat=HATS.some(h=>h.id===d.hat)?d.hat:'none';
+  if(!p){
+    const av=makeAvatar(name,color,hat); scene.add(av);
+    const bob=makeBobber(); bob.visible=false; scene.add(bob);
+    const ln=makeLine(); ln.visible=false; scene.add(ln);
+    p={av,bob,line:ln,target:new THREE.Vector3(),ry:0,tip:null,b:null,last:0};
+    av.position.set(d.p[0],0,d.p[2]); players.set(d.id,p);
+  }
+  const u=p.av.userData;
+  if(u.hat!==hat){ u.hatHolder.clear(); u.hatHolder.add(makeHat(hat)); u.hat=hat; }
+  if(u.color!==color){ u.body.material.color.set(color); u.color=color; }
+  if(u.name!==name){ p.av.remove(u.label); u.label=textSprite(name,{size:48,scale:0.28}); u.label.position.y=2.05; p.av.add(u.label); u.name=name; }
+  if(d.rc!==undefined) u.rod.userData.blankMat.color.setHex(d.rc);
+  p.target.set(d.p[0],0,d.p[2]); p.ry=d.ry; p.tip=d.tip?new THREE.Vector3().fromArray(d.tip):null; p.b=d.b?new THREE.Vector3().fromArray(d.b):null; p.last=performance.now();
+}
+function removePlayer(id){
+  const p=players.get(id); if(!p) return;
+  scene.remove(p.av,p.bob,p.line); players.delete(id);
+  addFeed(`${p.av.userData.name} left`,'#90a4ae');
+}
+let stateT=0;
+function sendState(force){
+  if(!net.peer||!net.code) return;
+  const cp=camera.getWorldPosition(new THREE.Vector3()), dir=camera.getWorldDirection(new THREE.Vector3());
+  const tip=rodTipWorld(new THREE.Vector3());
+  const r2=v=>[+v.x.toFixed(2),+v.y.toFixed(2),+v.z.toFixed(2)];
+  send({t:'s',id:net.myId,name:save.name,color:save.color,hat:save.hat,rc:curRod().col,
+    p:r2(cp), ry:+Math.atan2(-dir.x,-dir.z).toFixed(3), tip:r2(tip), b:bobber.visible?r2(bobber.position):null});
+}
+function updatePlayers(dt){
+  const k=1-Math.exp(-10*dt), now=performance.now();
+  for(const [id,p] of players){
+    if(now-p.last>15000){ removePlayer(id); continue; }
+    p.av.position.lerp(p.target,k);
+    let dr=p.ry-p.av.rotation.y; dr=Math.atan2(Math.sin(dr),Math.cos(dr)); p.av.rotation.y+=dr*k;
+    if(p.tip){ p.av.userData.rod.lookAt(p.tip); p.av.userData.rod.rotateY(Math.PI); }
+    if(p.b){ p.bob.visible=true; p.bob.position.lerp(p.b,k); p.line.visible=true;
+      const t=p.tip||p.av.position; updateLine(p.line,t,p.bob.position,0.3); }
+    else { p.bob.visible=false; p.line.visible=false; }
+  }
+}
+
+// ================= LOBBY =================
+$('nm').value = save.name || '';
+COLOURS.forEach(col=>{
+  const b=document.createElement('button'); b.style.cssText=`background:${col};flex:none;width:36px;height:36px;padding:0;border-radius:50%;border:3px solid ${col===save.color?'#123':'#fff'}`;
+  b.onclick=()=>{ save.color=col; persist(); [...$('colours').children].forEach(x=>x.style.borderColor='#fff'); b.style.borderColor='#123'; };
+  $('colours').appendChild(b);
+});
+function readName(){ const n=$('nm').value.trim().slice(0,12); if(!n){ $('lmsg').textContent='Type your name first'; return null; } save.name=n; persist(); return n; }
+function lobbyBusy(b){ ['solo','host','join'].forEach(id=>$(id).disabled=b); }
+function goStart(text){
+  $('lobby').style.display='none'; $('start').style.display='flex'; $('startRoom').innerHTML=text;
+  $('room').textContent = net.code ? 'Room '+net.code : 'Solo';
+  drawWrist();
+}
+$('solo').onclick=()=>{ audio(); if(!readName()) return; goStart('Playing solo. Your coins and fish save on this device.'); };
+$('host').onclick=()=>{
+  audio(); if(!readName()) return;
+  if(!window.Peer){ $('lmsg').textContent='Multiplayer library did not load. Try solo.'; return; }
+  lobbyBusy(true); $('lmsg').style.color='#123'; $('lmsg').textContent='Creating room...';
+  hostGame(code=>goStart(`Room code: <b style="font-size:32px;letter-spacing:4px">${code}</b><br>Friends type this code and press Join.`),
+    err=>{ lobbyBusy(false); $('lmsg').style.color='#c62828'; $('lmsg').textContent=err; });
+};
+$('join').onclick=()=>{
+  audio(); if(!readName()) return;
+  const code=$('code').value.trim().toUpperCase();
+  if(!/^[A-Z]{4}$/.test(code)){ $('lmsg').textContent='Enter the 4-letter room code'; return; }
+  if(!window.Peer){ $('lmsg').textContent='Multiplayer library did not load. Try solo.'; return; }
+  lobbyBusy(true); $('lmsg').style.color='#123'; $('lmsg').textContent='Joining '+code+'...';
+  joinGame(code, c=>goStart(`Joined room <b>${c}</b>!`), err=>{ lobbyBusy(false); $('lmsg').style.color='#c62828'; $('lmsg').textContent=err; try{net.peer.destroy();}catch(e){} net.peer=null; });
+};
+$('play').onclick=()=>{
+  audio(); gameStarted=true; $('start').style.display='none'; $('hud').style.display='block';
+  if(isTouch){ $('touch').style.display='block'; } else renderer.domElement.requestPointerLock?.();
+  setStatus(net.code?`Room ${net.code}: walk to the dock and cast!`:'Walk to the dock and cast!',4);
+};
+document.body.appendChild(VRButton.createButton(renderer));
+scene.add(wristBoard.mesh); wristBoard.mesh.visible=false;
+
+// ================= LOOP =================
+updateHud(); shopBoard.redraw(); dexBoard.redraw();
+const clock = new THREE.Clock();
+addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+
+renderer.setAnimationLoop(()=>{
+  const dt=Math.min(0.05,clock.getDelta()), time=clock.elapsedTime;
+  waterU.uTime.value=time;
+  flame.scale.y=1+Math.sin(time*13)*0.15; fireLight.intensity=2.5+Math.sin(time*17)*0.6;
+  clouds.forEach((c,i)=>{ c.position.x+=dt*(0.6+i%3*0.3); if(c.position.x>220) c.position.x=-220; });
+  if(gameStarted) updateMovement(dt);
+  updateFishing(dt,time);
+  for(let i=ripples.length-1;i>=0;i--){ const r=ripples[i]; r.t+=dt; const s=1+r.t*6*r.big; r.m.scale.set(s,s,s); r.m.material.opacity=0.8*(1-r.t/1.2); if(r.t>1.2){ scene.remove(r.m); r.m.geometry.dispose(); r.m.material.dispose(); ripples.splice(i,1);} }
+  if(statusTimer>0){ statusTimer-=dt; if(statusTimer<=0) setStatus(''); }
+  // board hover / VR lasers
+  const aim=aimInfo();
+  if(renderer.xr.isPresenting){
+    wristBoard.mesh.visible=!!leftGrip;
+    for(const c of controllers){
+      const o=new THREE.Vector3().setFromMatrixPosition(c.matrixWorld), d=new THREE.Vector3(0,0,-1).applyQuaternion(c.getWorldQuaternion(tmpQ));
+      const bh=boardHit({origin:o,dir:d});
+      c.userData.laser.visible=!!bh; if(bh) c.userData.laser.scale.z=bh.dist;
+      if(bh && (c===activeCtrl || !activeCtrl)){ const b=bh.board.hit(bh.uv); bh.board.setHover(b?b.id:null); }
+    }
+  } else {
+    const bh = F.state==='idle' ? boardHit(aim) : null;
+    for(const bd of [shopBoard,dexBoard]){ const b = bh&&bh.board===bd ? bd.hit(bh.uv) : null; bd.setHover(b?b.id:null); }
+    $('cross').style.background = bh ? '#ffca28' : '#fff';
+  }
+  wristT-=dt; if(wristDirty && wristT<=0 && renderer.xr.isPresenting){ wristBoard.redraw(); wristDirty=false; wristT=0.1; }
+  stateT-=dt; if(stateT<=0){ sendState(); stateT=0.1; }
+  updatePlayers(dt);
+  renderer.render(scene,camera);
+});
+</script>
+</body>
+</html>
