@@ -39,6 +39,7 @@
   #joy{position:fixed;left:24px;bottom:24px;width:120px;height:120px;border-radius:50%;background:#fff3;border:2px solid #fff8;z-index:6;touch-action:none}
   #joyK{position:absolute;left:40px;top:40px;width:40px;height:40px;border-radius:50%;background:#fffa}
   #actBtn{position:fixed;right:24px;bottom:28px;width:96px;height:96px;border-radius:50%;font-size:40px;z-index:6;padding:0;flex:none;touch-action:none}
+  #talkBtn{position:fixed;right:136px;bottom:40px;width:72px;height:72px;border-radius:50%;font-size:30px;z-index:6;padding:0;flex:none;touch-action:none;background:#7c4dff}
   #look{position:fixed;right:0;top:0;width:60%;height:100%;z-index:4;touch-action:none}
 </style>
 <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
@@ -58,14 +59,14 @@
   <input type="text" id="nm" maxlength="12" placeholder="Name">
   <label>Your colour</label>
   <div class="row" id="colours"></div>
-  <label>Your critter</label>
-  <div class="row" id="species"></div>
+
   <div class="row"><button id="quick" style="background:#43a047">🌏 Quick Play (public server)</button></div>
   <div class="row"><button id="solo" class="alt">Play solo</button><button id="host">Host private game</button></div>
   <div class="row"><input type="text" id="code" maxlength="4" placeholder="CODE"><button id="join">Join</button></div>
+  <label id="micRow" style="display:none;font-weight:500"><input type="checkbox" id="micOk"> 🎤 Let me talk to the bots with my voice</label>
   <p id="lmsg"></p>
-  <p class="small"><b>Computer:</b> WASD move, mouse look, hold left click to charge and release to cast, click when the bobber dips, hold to reel (let go when the line is tight!).<br>
-  <b>VR:</b> left stick move, right stick turn, right trigger does the same as left click. Point at the boards and pull a trigger to shop.</p>
+  <p class="small"><b>Computer:</b> WASD move, mouse look, hold left click to charge and release to cast, click when the bobber dips, hold to reel (let go when the line is tight!). Hold V near a 🤖 bot to talk to it.<br>
+  <b>VR:</b> left stick move, right stick turn, right trigger does the same as left click. Point at the boards and pull a trigger to shop or travel. Hold a grip button near a 🤖 bot to talk to it.</p>
 </div></div>
 
 <div id="start" class="panel" style="display:none"><div class="card">
@@ -89,6 +90,7 @@
   <div id="look"></div>
   <div id="joy"><div id="joyK"></div></div>
   <button id="actBtn">🎣</button>
+  <button id="talkBtn">🎤</button>
 </div>
 
 <script type="module">
@@ -102,23 +104,76 @@ const RAR = {
   uncommon:{w:25,c:'#43a047',label:'Uncommon'}, rare:{w:10,c:'#1e88e5',label:'Rare'},
   epic:{w:4,c:'#8e24aa',label:'Epic'}, legendary:{w:1,c:'#f9a825',label:'Legendary'}
 };
+// fish: zone, rarity, colours (col + accent col2), weight range kg, base coins, fight strength, min cast distance, body shape
+function FD(zone,id,name,r,col,col2,min,max,coin,str,minD,shape='fish'){ return {zone,id,name,r,col,col2,min,max,coin,str,minD,shape}; }
 const FISH = [
-  {id:'boot',name:'Old Boot',r:'junk',col:0x5d4037,min:0.4,max:1,coin:1,str:0.2,minD:0},
-  {id:'sardine',name:'Sardine',r:'common',col:0x90a4ae,min:0.05,max:0.2,coin:4,str:0.3,minD:0},
-  {id:'perch',name:'Perch',r:'common',col:0x9ccc65,min:0.2,max:1.2,coin:6,str:0.4,minD:0},
-  {id:'bream',name:'Bream',r:'common',col:0xbdbdbd,min:0.3,max:1.5,coin:7,str:0.45,minD:0},
-  {id:'trout',name:'Rainbow Trout',r:'uncommon',col:0xf48fb1,min:0.5,max:3,coin:15,str:0.55,minD:7},
-  {id:'flathead',name:'Flathead',r:'uncommon',col:0xa1887f,min:0.5,max:3,coin:16,str:0.55,minD:8},
-  {id:'snapper',name:'Snapper',r:'uncommon',col:0xef5350,min:0.8,max:5,coin:18,str:0.6,minD:10},
-  {id:'puffer',name:'Pufferfish',r:'rare',col:0xffee58,min:0.3,max:2,coin:40,str:0.5,minD:12},
-  {id:'barra',name:'Barramundi',r:'rare',col:0xb0bec5,min:2,max:15,coin:45,str:0.75,minD:15},
-  {id:'cod',name:'Murray Cod',r:'rare',col:0x689f38,min:3,max:30,coin:55,str:0.8,minD:18},
-  {id:'koi',name:'Golden Koi',r:'epic',col:0xffa000,min:2,max:10,coin:120,str:0.85,minD:22},
-  {id:'ray',name:'Rainbow Ray',r:'epic',col:0x26c6da,min:5,max:40,coin:150,str:0.9,minD:25},
-  {id:'sword',name:'Swordfish',r:'epic',col:0x3949ab,min:20,max:120,coin:170,str:0.95,minD:28},
-  {id:'ghost',name:'Ghost Fish',r:'legendary',col:0xe0f7fa,min:1,max:8,coin:500,str:1,minD:31},
-  {id:'leviathan',name:'Baby Leviathan',r:'legendary',col:0x1b5e20,min:80,max:300,coin:800,str:1.1,minD:35},
+  FD('cove','boot','Old Boot','junk',0x5d4037,0x3e2723,0.4,1,1,0.2,0,'boot'),
+  FD('cove','sardine','Sardine','common',0x90a4ae,0xcfd8dc,0.05,0.2,4,0.3,0),
+  FD('cove','perch','Perch','common',0x9ccc65,0x33691e,0.2,1.2,6,0.4,0),
+  FD('cove','bream','Bream','common',0xbdbdbd,0x757575,0.3,1.5,7,0.45,0),
+  FD('cove','trout','Rainbow Trout','uncommon',0xf48fb1,0x7cb342,0.5,3,15,0.55,7),
+  FD('cove','flathead','Flathead','uncommon',0xa1887f,0x4e342e,0.5,3,16,0.55,8),
+  FD('cove','snapper','Snapper','uncommon',0xef5350,0xffcdd2,0.8,5,18,0.6,10),
+  FD('cove','puffer','Pufferfish','rare',0xffee58,0x6d4c41,0.3,2,40,0.5,12,'puffer'),
+  FD('cove','barra','Barramundi','rare',0xb0bec5,0x37474f,2,15,45,0.75,15),
+  FD('cove','cod','Murray Cod','rare',0x689f38,0x1b5e20,3,30,55,0.8,18),
+  FD('cove','koi','Golden Koi','epic',0xffa000,0xffffff,2,10,120,0.85,22),
+  FD('cove','ray','Rainbow Ray','epic',0x26c6da,0xff4081,5,40,150,0.9,25,'ray'),
+  FD('cove','sword','Swordfish','epic',0x3949ab,0x90caf9,20,120,170,0.95,28,'sword'),
+  FD('cove','leviathan','Baby Leviathan','legendary',0x1b5e20,0x76ff03,80,300,800,1.1,33,'eel'),
+
+  FD('fjord','herring','Herring','common',0x78909c,0xe1f5fe,0.1,0.4,8,0.35,0),
+  FD('fjord','icecod','Ice Cod','common',0xb3e5fc,0x0277bd,0.5,3,10,0.45,0),
+  FD('fjord','smelt','Snow Smelt','common',0xeceff1,0x90a4ae,0.05,0.3,9,0.3,0),
+  FD('fjord','char','Arctic Char','uncommon',0xff7043,0x263238,1,6,24,0.6,8),
+  FD('fjord','salmon','Silver Salmon','uncommon',0xcfd8dc,0xf06292,2,12,28,0.65,10),
+  FD('fjord','pike','Glacier Pike','rare',0x80deea,0x004d40,3,20,70,0.8,14,'long'),
+  FD('fjord','crab','Frost Crab','rare',0x4fc3f7,0xffffff,1,6,65,0.7,16,'crab'),
+  FD('fjord','narwhal','Narwhal Pup','epic',0xb0bec5,0xfff59d,40,200,220,0.95,24,'sword'),
+  FD('fjord','aurora','Aurora Eel','epic',0x69f0ae,0xb388ff,3,25,240,0.95,27,'eel'),
+  FD('fjord','wyrm','Frost Wyrm','legendary',0xe1f5fe,0x40c4ff,60,400,1200,1.15,33,'eel'),
+
+  FD('swamp','catfish','Mud Catfish','common',0x6d4c41,0xbcaaa4,0.5,4,12,0.45,0),
+  FD('swamp','toad','Toadfish','common',0x827717,0xdce775,0.2,1.5,11,0.4,0,'puffer'),
+  FD('swamp','minnow','Murk Minnow','common',0x558b2f,0xaed581,0.02,0.1,10,0.3,0),
+  FD('swamp','gar','Longnose Gar','uncommon',0x9e9d24,0x33691e,2,15,32,0.7,8,'long'),
+  FD('swamp','jelly','Glow Jelly','uncommon',0xe040fb,0x18ffff,0.1,1,34,0.5,10,'jelly'),
+  FD('swamp','shroom','Shroom Snapper','rare',0xff4081,0xffffff,1,8,85,0.75,13),
+  FD('swamp','bogeel','Bog Eel','rare',0x33691e,0xc6ff00,2,12,90,0.8,16,'eel'),
+  FD('swamp','ghost','Ghost Fish','epic',0xe0f7fa,0x84ffff,1,8,300,0.95,23),
+  FD('swamp','witchkoi','Witch Koi','epic',0x7c4dff,0x00e676,2,12,320,0.95,26),
+  FD('swamp','bogking','Bog King','legendary',0x2e7d32,0xffd600,50,250,1600,1.15,33,'puffer'),
+
+  FD('lava','ember','Emberfish','common',0xff7043,0xffd180,0.2,1.5,16,0.45,0),
+  FD('lava','cinder','Cinder Minnow','common',0x424242,0xff6d00,0.02,0.2,14,0.35,0),
+  FD('lava','ashcarp','Ash Carp','common',0x9e9e9e,0x616161,1,6,18,0.5,0),
+  FD('lava','magmapuff','Magma Puffer','uncommon',0xff3d00,0xffea00,0.5,3,45,0.6,8,'puffer'),
+  FD('lava','lobster','Lava Lobster','uncommon',0xd50000,0xff9e80,1,5,48,0.65,10,'crab'),
+  FD('lava','obsray','Obsidian Ray','rare',0x212121,0xff3d00,5,40,120,0.85,14,'ray'),
+  FD('lava','flamefin','Flamefin','rare',0xff6f00,0xffff00,1,9,130,0.8,17),
+  FD('lava','dragonkoi','Dragon Koi','epic',0xd50000,0xffd600,3,20,420,1,24),
+  FD('lava','salamander','Magma Serpent','epic',0xff6d00,0x3e2723,10,80,450,1,27,'eel'),
+  FD('lava','phoenix','Phoenix Fish','legendary',0xff9100,0xffff00,5,30,2400,1.2,33),
+
+  FD('candy','gummy','Gummy Fish','common',0xff5252,0xffeb3b,0.05,0.3,20,0.4,0),
+  FD('candy','jellybean','Jellybean Minnow','common',0x7c4dff,0x18ffff,0.02,0.1,18,0.3,0),
+  FD('candy','marsh','Marshmallow Bass','common',0xfce4ec,0xf8bbd0,0.5,3,22,0.5,0,'puffer'),
+  FD('candy','lolli','Lollipike','uncommon',0xff4081,0xffffff,1,8,55,0.65,8,'long'),
+  FD('candy','cotton','Cotton Candy Cod','uncommon',0x80d8ff,0xff80ab,1,6,58,0.6,10),
+  FD('candy','choco','Chocolate Bass','rare',0x5d4037,0xffcc80,2,12,150,0.8,14),
+  FD('candy','sprinkle','Sprinkle Shark','rare',0xf8bbd0,0x00e5ff,10,60,170,0.85,17,'sword'),
+  FD('candy','unicorn','Unicorn Fish','epic',0xea80fc,0xffff8d,2,15,520,1,24,'sword'),
+  FD('candy','candyray','Candy Ray','epic',0xff80ab,0x69f0ae,5,40,560,1,27,'ray'),
+  FD('candy','kraken','Candy Kraken','legendary',0xff4081,0x7c4dff,100,500,3200,1.25,33,'jelly'),
 ];
+const ZONES = [
+  {id:'cove',  name:'Sunny Cove',      short:'Cove',  price:0,    desc:'Warm beach, palm trees'},
+  {id:'fjord', name:'Frosty Fjord',    short:'Fjord', price:150,  desc:'Snow, ice and pine trees'},
+  {id:'swamp', name:'Glowshroom Bayou',short:'Bayou', price:600,  desc:'Spooky swamp, glowing mushrooms'},
+  {id:'lava',  name:'Lava Lagoon',     short:'Lava',  price:1500, desc:'Fish in hot lava!'},
+  {id:'candy', name:'Candy Reef',      short:'Candy', price:3000, desc:'Sweets everywhere'},
+];
+const zoneOf = id => ZONES.find(z=>z.id===id) || ZONES[0];
 const RODS = [
   {id:'twig',name:'Twig Rod',price:0,cast:12,power:1,col:0x8d6e63},
   {id:'bamboo',name:'Bamboo Rod',price:60,cast:18,power:1.3,col:0xc5e1a5},
@@ -137,11 +192,13 @@ const HATS = [
   {id:'none',name:'No Hat',price:0},{id:'cap',name:'Cap',price:30},{id:'bucket',name:'Bucket Hat',price:90},
   {id:'pirate',name:'Pirate Hat',price:300},{id:'crown',name:'Crown',price:1200},
 ];
-const COLOURS = ['#ff7043','#ffca28','#66bb6a','#29b6f6','#ab47bc','#ec407a','#8d6e63','#eceff1'];
+const COLOURS = ['#ff7043','#ffca28','#66bb6a','#29b6f6','#ab47bc','#ec407a','#8d6e63','#eceff1','#5b5b66','#3b2a20'];
 
 const SAVE_KEY = 'fishyfriends-save-v1';
-const save = {coins:0,rods:['twig'],rod:'twig',baits:['bread'],bait:'bread',hats:['none'],hat:'none',dex:{},name:'',color:COLOURS[0],species:'cat'};
+const save = {coins:0,rods:['twig'],rod:'twig',baits:['bread'],bait:'bread',hats:['none'],hat:'none',dex:{},name:'',color:COLOURS[8],zones:['cove'],zone:'cove'};
 try { Object.assign(save, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}')); } catch(e) {}
+if(!Array.isArray(save.zones)||!save.zones.includes('cove')) save.zones=['cove'];
+if(!save.zones.includes(save.zone)) save.zone='cove';
 function persist(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch(e) {} }
 const curRod = () => RODS.find(r=>r.id===save.rod) || RODS[0];
 const curBait = () => BAITS.find(b=>b.id===save.bait) || BAITS[0];
@@ -201,11 +258,11 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure
 // toon shading: 3 hard light bands for a bright cartoony look
 const GRAD = (()=>{ const t=new THREE.DataTexture(new Uint8Array([90,90,90,255, 170,170,170,255, 255,255,255,255]),3,1); t.minFilter=t.magFilter=THREE.NearestFilter; t.needsUpdate=true; return t; })();
 function toonMat(p){ return new THREE.MeshToonMaterial({...p, gradientMap:GRAD}); }
-const SKY_TOP=0x3fa9ff, SKY_HOR=0xbfeaff;
-scene.fog = new THREE.Fog(SKY_HOR, 80, 300);
-scene.background = new THREE.Color(SKY_HOR);
-const sky = new THREE.Mesh(new THREE.SphereGeometry(400,24,12), new THREE.ShaderMaterial({side:THREE.BackSide, depthWrite:false, fog:false,
-  uniforms:{top:{value:new THREE.Color(SKY_TOP)},hor:{value:new THREE.Color(SKY_HOR)}},
+// ================= WORLD: shared sky / water, plus one themed island per zone =================
+scene.fog = new THREE.Fog(0xbfeaff, 80, 300);
+scene.background = new THREE.Color(0xbfeaff);
+const skyU = {top:{value:new THREE.Color(0x3fa9ff)},hor:{value:new THREE.Color(0xbfeaff)}};
+const sky = new THREE.Mesh(new THREE.SphereGeometry(400,24,12), new THREE.ShaderMaterial({side:THREE.BackSide, depthWrite:false, fog:false, uniforms:skyU,
   vertexShader:'varying vec3 vP; void main(){ vP=normalize(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
   fragmentShader:'uniform vec3 top; uniform vec3 hor; varying vec3 vP; void main(){ float h=clamp(vP.y*2.2,0.0,1.0); gl_FragColor=vec4(mix(hor,top,pow(h,0.8)),1.0); }'}));
 scene.add(sky);
@@ -213,10 +270,9 @@ const sunDisc = new THREE.Mesh(new THREE.CircleGeometry(16,32), new THREE.MeshBa
 const sunHalo = new THREE.Mesh(new THREE.CircleGeometry(26,32), new THREE.MeshBasicMaterial({color:0xfff3b0, fog:false, transparent:true, opacity:0.45}));
 sunDisc.position.set(120,150,-260); sunDisc.lookAt(0,0,0); scene.add(sunDisc);
 sunHalo.position.set(121,151,-262); sunHalo.lookAt(0,0,0); scene.add(sunHalo);
-scene.add(new THREE.HemisphereLight(0xdff4ff, 0x6fbf4a, 1.3));
+const hemi = new THREE.HemisphereLight(0xdff4ff, 0x6fbf4a, 1.3); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff0d0, 2.2); sun.position.set(30,50,-40); scene.add(sun);
 
-// ---- water: bright turquoise toon water with waves in the vertex shader
 const waterU = {uTime:{value:0}};
 const waterMat = toonMat({color:0x21c4e8, transparent:true, opacity:0.92});
 waterMat.onBeforeCompile = sh => {
@@ -228,82 +284,11 @@ const water = new THREE.Mesh(new THREE.PlaneGeometry(700,700,90,90), waterMat);
 water.rotation.x = -Math.PI/2; water.position.y = WATER_Y; scene.add(water);
 const seabed = new THREE.Mesh(new THREE.CircleGeometry(350,32), new THREE.MeshBasicMaterial({color:0x0f7fa8}));
 seabed.rotation.x=-Math.PI/2; seabed.position.y=-5; scene.add(seabed);
-// shallow lagoon colour + foam ring around the island
 const shallow = new THREE.Mesh(new THREE.RingGeometry(ISLAND_R+1, ISLAND_R+9, 64), new THREE.MeshBasicMaterial({color:0x7ff0e6, transparent:true, opacity:0.45, depthWrite:false}));
 shallow.rotation.x=-Math.PI/2; shallow.position.y=WATER_Y+0.12; scene.add(shallow);
 const foam = new THREE.Mesh(new THREE.RingGeometry(ISLAND_R+2.4, ISLAND_R+3.1, 64), new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.85, depthWrite:false}));
 foam.rotation.x=-Math.PI/2; foam.position.y=WATER_Y+0.14; scene.add(foam);
 
-// ---- island
-const sand = new THREE.Mesh(new THREE.CylinderGeometry(ISLAND_R+0.5, ISLAND_R+3, 2, 48), toonMat({color:0xffe08a}));
-sand.position.y = -1; scene.add(sand);
-const grass = new THREE.Mesh(new THREE.CylinderGeometry(ISLAND_R-3, ISLAND_R-2.5, 0.14, 48), toonMat({color:0x6ee05a}));
-grass.position.y = 0.0; scene.add(grass);
-
-// ---- dock (painted planks + rope posts + lanterns)
-const wood = toonMat({color:0xc98a4b});
-const woodDark = toonMat({color:0x7a4a28});
-const plankCols=[0xc98a4b,0xb97a3e,0xd49a5a].map(c=>toonMat({color:c}));
-let pi=0;
-for(let z=DOCK.z1; z>DOCK.z0; z-=0.5){
-  const p = new THREE.Mesh(new THREE.BoxGeometry(DOCK.x1-DOCK.x0, 0.14, 0.44), plankCols[(pi++)%3]);
-  p.position.set(0, -0.02, z-0.25); p.rotation.y=rand(-0.02,0.02); scene.add(p);
-}
-const lanternMat = new THREE.MeshBasicMaterial({color:0xffd166});
-for(let z=DOCK.z1-1; z>=DOCK.z0; z-=4){
-  for(const x of [DOCK.x0+0.12, DOCK.x1-0.12]){
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.13,2.6,8), woodDark);
-    post.position.set(x,-0.3,z); scene.add(post);
-    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.15,10,8), lanternMat); cap.position.set(x,1.08,z); scene.add(cap);
-  }
-}
-// big buoy ring at the end of the dock
-const buoy = new THREE.Mesh(new THREE.TorusGeometry(0.45,0.15,8,16), toonMat({color:0xff5a5f}));
-buoy.position.set(DOCK.x1+0.05,0.5,DOCK.z0+0.6); buoy.rotation.y=Math.PI/2; scene.add(buoy);
-
-// ---- round cartoon trees, palms, flowers, rocks, campfire, far islands
-const leafCols=[0x3ccf5b,0x2fb84f,0x57d96b,0x8be05a].map(c=>toonMat({color:c}));
-function tree(x,z,s=1){
-  const g = new THREE.Group();
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18*s,0.28*s,2.4*s,8), woodDark); trunk.position.y=1.2*s; g.add(trunk);
-  const lm = leafCols[Math.floor(Math.random()*leafCols.length)];
-  [[0,3,0,1.4],[0.8,2.6,0.3,0.9],[-0.7,2.7,-0.2,1.0],[0.1,3.8,0.1,0.9]].forEach(([a,b,c,r])=>{ const l=new THREE.Mesh(new THREE.IcosahedronGeometry(r*s,1),lm); l.position.set(a*s,b*s,c*s); g.add(l); });
-  g.position.set(x,0,z); g.rotation.y=Math.random()*6; scene.add(g);
-}
-function palm(x,z,s=1){
-  const g=new THREE.Group(); let px=0,py=0;
-  for(let i=0;i<6;i++){ const seg=new THREE.Mesh(new THREE.CylinderGeometry(0.16*s,0.2*s,0.75*s,7),wood); px+=0.08*s*i*0.3; py+=0.7*s; seg.position.set(px,py,0); seg.rotation.z=-0.05*i; g.add(seg); }
-  const fm=leafCols[1];
-  for(let i=0;i<6;i++){ const f=new THREE.Mesh(new THREE.ConeGeometry(0.35*s,2.2*s,4),fm); const a=i/6*Math.PI*2; f.position.set(px+Math.cos(a)*0.9*s,py+0.1,Math.sin(a)*0.9*s); f.rotation.set(Math.sin(a)*1.9,0,-Math.cos(a)*1.9); f.scale.z=0.25; g.add(f); }
-  const nut=toonMat({color:0x6b3e1f}); for(let i=0;i<3;i++){ const n=new THREE.Mesh(new THREE.SphereGeometry(0.14*s,8,6),nut); n.position.set(px+Math.cos(i*2)*0.2,py-0.2,Math.sin(i*2)*0.2); g.add(n); }
-  g.position.set(x,0,z); g.rotation.y=Math.random()*6; scene.add(g);
-}
-[[-10,2],[-8,8],[2,11],[9,7],[-13,6],[-5,12],[13,4],[-9,-9]].forEach(([x,z])=>tree(x,z,rand(0.85,1.2)));
-[[-12,-4],[12,-2],[11,-8],[6,-10],[-15,-8],[15,-9]].forEach(([x,z])=>palm(x,z,rand(0.9,1.15)));
-const flowerCols=[0xff6fa8,0xffd23f,0xffffff,0xb388ff,0xff8a3d].map(c=>new THREE.MeshBasicMaterial({color:c}));
-const stem=toonMat({color:0x3c9d3c});
-for(let i=0;i<70;i++){
-  const a=Math.random()*Math.PI*2, r=rand(3,14.5), x=Math.cos(a)*r, z=Math.sin(a)*r;
-  if(Math.abs(x)<2.5 && z<-8) continue; // keep the path to the dock clear
-  const f=new THREE.Group(); const st=new THREE.Mesh(new THREE.CylinderGeometry(0.015,0.015,0.3,4),stem); st.position.y=0.15; f.add(st);
-  const h=new THREE.Mesh(new THREE.SphereGeometry(0.07,6,5),flowerCols[i%flowerCols.length]); h.position.y=0.32; f.add(h);
-  f.position.set(x,0,z); scene.add(f);
-}
-const rockMat = toonMat({color:0xa7b4c2, flatShading:true});
-[[4,4],[-4,6],[15,-6],[-15,-2],[7,13],[18.5,3],[-18,9]].forEach(([x,z])=>{ const r=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.4,1)),rockMat); r.position.set(x,0.15,z); r.rotation.set(rand(0,3),rand(0,3),0); scene.add(r); });
-const fire = new THREE.Group(); fire.position.set(0,0,3); scene.add(fire);
-for(let i=0;i<8;i++){ const s=new THREE.Mesh(new THREE.DodecahedronGeometry(0.22),rockMat); const a=i/8*Math.PI*2; s.position.set(Math.cos(a)*0.65,0.1,Math.sin(a)*0.65); fire.add(s); }
-for(let i=0;i<4;i++){ const l=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,1,6),woodDark); l.rotation.z=Math.PI/2; l.rotation.y=i*Math.PI/4; l.position.y=0.1; fire.add(l); }
-const flame = new THREE.Mesh(new THREE.ConeGeometry(0.3,0.8,8), new THREE.MeshBasicMaterial({color:0xff9a1f})); flame.position.y=0.5; fire.add(flame);
-const flame2 = new THREE.Mesh(new THREE.ConeGeometry(0.16,0.5,8), new THREE.MeshBasicMaterial({color:0xffe14d})); flame2.position.y=0.4; fire.add(flame2);
-const fireLight = new THREE.PointLight(0xff9a1f, 3, 8); fireLight.position.y=1; fire.add(fireLight);
-// log seats around the fire
-for(let i=0;i<4;i++){ const a=i/4*Math.PI*2+0.4; const lg=new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.25,1.6,10),wood); lg.rotation.z=Math.PI/2; lg.rotation.y=-a; lg.position.set(Math.cos(a)*2.4,0.25,3+Math.sin(a)*2.4); scene.add(lg); }
-[[-30,-95,14,0x58c94c],[95,-40,20,0x6bd65a],[-110,30,18,0x4fbf6a],[40,120,22,0x6bd65a],[0,-170,30,0x58c94c]].forEach(([x,z,s,c])=>{
-  const sd=new THREE.Mesh(new THREE.CylinderGeometry(s*0.9,s,2,20),toonMat({color:0xffe08a})); sd.position.set(x,WATER_Y-0.6,z); scene.add(sd);
-  const m=new THREE.Mesh(new THREE.IcosahedronGeometry(s*0.7,1),toonMat({color:c,flatShading:true})); m.scale.y=0.55; m.position.set(x,WATER_Y+s*0.15,z); scene.add(m);
-});
-// puffy clouds
 const cloudMat = toonMat({color:0xffffff});
 const clouds = [];
 for(let i=0;i<14;i++){
@@ -311,12 +296,240 @@ for(let i=0;i<14;i++){
   for(let j=0;j<5;j++){ const s=new THREE.Mesh(new THREE.IcosahedronGeometry(rand(3,6),1),cloudMat); s.position.set(j*3.5-7,rand(-0.5,1.5),rand(-2,2)); c.add(s); }
   c.position.set(rand(-220,220), rand(40,70), rand(-220,220)); scene.add(c); clouds.push(c);
 }
-// fish jumping out of the water now and then, for life
+
+// shared materials used by several zones (and by the boards)
+const woodDark = toonMat({color:0x7a4a28});
+const rockMat = toonMat({color:0xa7b4c2, flatShading:true});
+
+const THEMES = {
+  cove: {top:0x3fa9ff,hor:0xbfeaff,water:0x21c4e8,glow:0,shallow:0x7ff0e6,foam:0xffffff,seabed:0x0f7fa8,hemi:[0xdff4ff,0x6fbf4a,1.3],sun:[0xfff0d0,2.2],disc:0xffe066,fog:[80,300],cloud:0xffffff},
+  fjord:{top:0x6fa8dc,hor:0xe8f4ff,water:0x2f7fb8,glow:0,shallow:0xd4f1ff,foam:0xffffff,seabed:0x0b3d5c,hemi:[0xffffff,0x9fc5d8,1.45],sun:[0xffffff,1.8],disc:0xfffbe6,fog:[60,260],cloud:0xe3e9ef},
+  swamp:{top:0x1d1240,hor:0x6b4c9a,water:0x2c5e4a,glow:0,shallow:0x5fbf7a,foam:0xb9f6ca,seabed:0x0e2a20,hemi:[0xa99cff,0x2b4a2b,1.0],sun:[0xc8b5ff,0.9],disc:0xeef0ff,fog:[35,190],cloud:0x4a3a6a},
+  lava: {top:0x2a0a0a,hor:0xff7a3d,water:0xff5a14,glow:0xff2a00,shallow:0xffd166,foam:0xfff3b0,seabed:0x330000,hemi:[0xffb38a,0x3a1a10,1.1],sun:[0xffb070,1.6],disc:0xff5a2a,fog:[45,230],cloud:0x3a2a2a},
+  candy:{top:0xff8fd0,hor:0xffe3f3,water:0x6fd3ff,glow:0,shallow:0xffffff,foam:0xffc1e3,seabed:0x3c8fd6,hemi:[0xffffff,0xffb0d8,1.45],sun:[0xfff0f8,2.0],disc:0xfff3a0,fog:[80,300],cloud:0xffd1ec},
+};
+
+// --- building helpers
+function islandBase(g, sandCol, topCol){
+  const sand = new THREE.Mesh(new THREE.CylinderGeometry(ISLAND_R+0.5, ISLAND_R+3, 2, 48), toonMat({color:sandCol})); sand.position.y=-1; g.add(sand);
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(ISLAND_R-3, ISLAND_R-2.5, 0.14, 48), toonMat({color:topCol})); g.add(top);
+}
+function buildDock(g, cols, postCol, lampCol){
+  const mats = cols.map(c=>toonMat({color:c})), post=toonMat({color:postCol}), lamp=new THREE.MeshBasicMaterial({color:lampCol});
+  const plank = new THREE.BoxGeometry(DOCK.x1-DOCK.x0, 0.14, 0.44); let i=0;
+  for(let z=DOCK.z1; z>DOCK.z0; z-=0.5){ const p=new THREE.Mesh(plank, mats[(i++)%mats.length]); p.position.set(0,-0.02,z-0.25); p.rotation.y=rand(-0.02,0.02); g.add(p); }
+  const pg=new THREE.CylinderGeometry(0.13,0.13,2.6,8), lg=new THREE.SphereGeometry(0.15,10,8);
+  for(let z=DOCK.z1-1; z>=DOCK.z0; z-=4) for(const x of [DOCK.x0+0.12, DOCK.x1-0.12]){
+    const p=new THREE.Mesh(pg,post); p.position.set(x,-0.3,z); g.add(p);
+    const l=new THREE.Mesh(lg,lamp); l.position.set(x,1.08,z); g.add(l);
+  }
+}
+function campfire(g, x, z, c1, c2, seatMat){
+  const f=new THREE.Group(); f.position.set(x,0,z); g.add(f);
+  for(let i=0;i<8;i++){ const s=new THREE.Mesh(new THREE.DodecahedronGeometry(0.22),rockMat); const a=i/8*Math.PI*2; s.position.set(Math.cos(a)*0.65,0.1,Math.sin(a)*0.65); f.add(s); }
+  for(let i=0;i<4;i++){ const l=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,1,6),woodDark); l.rotation.z=Math.PI/2; l.rotation.y=i*Math.PI/4; l.position.y=0.1; f.add(l); }
+  const f1=new THREE.Mesh(new THREE.ConeGeometry(0.3,0.8,8), new THREE.MeshBasicMaterial({color:c1})); f1.position.y=0.5; f.add(f1);
+  const f2=new THREE.Mesh(new THREE.ConeGeometry(0.16,0.5,8), new THREE.MeshBasicMaterial({color:c2})); f2.position.y=0.4; f.add(f2);
+  const light=new THREE.PointLight(c1,3,8); light.position.y=1; f.add(light);
+  for(let i=0;i<4;i++){ const a=i/4*Math.PI*2+0.4; const lg=new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.25,1.6,10),seatMat); lg.rotation.z=Math.PI/2; lg.rotation.y=-a; lg.position.set(x+Math.cos(a)*2.4,0.25,z+Math.sin(a)*2.4); g.add(lg); }
+  return t=>{ f1.scale.y=1+Math.sin(t*13)*0.15; f2.scale.y=1+Math.sin(t*17)*0.2; light.intensity=2.5+Math.sin(t*17)*0.6; };
+}
+function islandSpots(n, rMin, rMax, avoidPath=true){ // random points on the island, away from the dock path and the boards
+  const pts=[]; let tries=0;
+  while(pts.length<n && tries++<n*30){
+    const a=Math.random()*Math.PI*2, r=rand(rMin,rMax), x=Math.cos(a)*r, z=Math.sin(a)*r;
+    if(avoidPath && Math.abs(x)<3 && z<-4) continue;          // path to the dock
+    if(Math.hypot(x-4.6,z+13.2)<2.5 || Math.hypot(x+4.6,z+13.2)<2.5 || Math.hypot(x,z-8.5)<2.5) continue; // boards
+    if(Math.hypot(x,z-3)<3.2) continue;                        // campfire
+    if(Math.abs(x)<5.5 && z<-0.5 && z>-11) continue;            // spawn area
+    pts.push([x,z]);
+  }
+  return pts;
+}
+function farIslands(g, list, sandCol, fn){
+  list.forEach(([x,z,s])=>{ const sd=new THREE.Mesh(new THREE.CylinderGeometry(s*0.9,s,2,20),toonMat({color:sandCol})); sd.position.set(x,WATER_Y-0.6,z); g.add(sd); fn(x,z,s); });
+}
+const FAR = [[-30,-95,14],[95,-40,20],[-110,30,18],[40,120,22],[0,-170,30]];
+function particles(g, n, color, size, area, h0, h1){
+  const pos=new Float32Array(n*3);
+  for(let i=0;i<n;i++){ pos[i*3]=rand(-area,area); pos[i*3+1]=rand(h0,h1); pos[i*3+2]=rand(-area,area); }
+  const geo=new THREE.BufferGeometry(); geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  const pts=new THREE.Points(geo,new THREE.PointsMaterial({color,size,transparent:true,opacity:0.9,depthWrite:false}));
+  g.add(pts); return {pts,pos,geo,n,area,h0,h1};
+}
+
+// --- Sunny Cove
+const leafCols=[0x3ccf5b,0x2fb84f,0x57d96b,0x8be05a].map(c=>toonMat({color:c}));
+function roundTree(g,x,z,s,lm,trunkMat=woodDark){
+  const t=new THREE.Group();
+  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(0.18*s,0.28*s,2.4*s,8),trunkMat); trunk.position.y=1.2*s; t.add(trunk);
+  [[0,3,0,1.4],[0.8,2.6,0.3,0.9],[-0.7,2.7,-0.2,1.0],[0.1,3.8,0.1,0.9]].forEach(([a,b,c,r])=>{ const l=new THREE.Mesh(new THREE.IcosahedronGeometry(r*s,1),lm); l.position.set(a*s,b*s,c*s); t.add(l); });
+  t.position.set(x,0,z); t.rotation.y=Math.random()*6; g.add(t);
+}
+function palm(g,x,z,s,woodM){
+  const t=new THREE.Group(); let px=0,py=0;
+  for(let i=0;i<6;i++){ const seg=new THREE.Mesh(new THREE.CylinderGeometry(0.16*s,0.2*s,0.75*s,7),woodM); px+=0.08*s*i*0.3; py+=0.7*s; seg.position.set(px,py,0); seg.rotation.z=-0.05*i; t.add(seg); }
+  for(let i=0;i<6;i++){ const f=new THREE.Mesh(new THREE.ConeGeometry(0.35*s,2.2*s,4),leafCols[1]); const a=i/6*Math.PI*2; f.position.set(px+Math.cos(a)*0.9*s,py+0.1,Math.sin(a)*0.9*s); f.rotation.set(Math.sin(a)*1.9,0,-Math.cos(a)*1.9); f.scale.z=0.25; t.add(f); }
+  const nut=toonMat({color:0x6b3e1f}); for(let i=0;i<3;i++){ const n=new THREE.Mesh(new THREE.SphereGeometry(0.14*s,8,6),nut); n.position.set(px+Math.cos(i*2)*0.2,py-0.2,Math.sin(i*2)*0.2); t.add(n); }
+  t.position.set(x,0,z); t.rotation.y=Math.random()*6; g.add(t);
+}
+function buildCove(g){
+  islandBase(g,0xffe08a,0x6ee05a);
+  buildDock(g,[0xc98a4b,0xb97a3e,0xd49a5a],0x7a4a28,0xffd166);
+  const wood=toonMat({color:0xc98a4b});
+  const buoy=new THREE.Mesh(new THREE.TorusGeometry(0.45,0.15,8,16),toonMat({color:0xff5a5f})); buoy.position.set(DOCK.x1+0.05,0.5,DOCK.z0+0.6); buoy.rotation.y=Math.PI/2; g.add(buoy);
+  islandSpots(8,6,14).forEach(([x,z])=>roundTree(g,x,z,rand(0.85,1.2),leafCols[Math.floor(Math.random()*4)]));
+  islandSpots(6,10,15.5).forEach(([x,z])=>palm(g,x,z,rand(0.9,1.15),wood));
+  const fm=[0xff6fa8,0xffd23f,0xffffff,0xb388ff,0xff8a3d].map(c=>new THREE.MeshBasicMaterial({color:c})), stem=toonMat({color:0x3c9d3c});
+  islandSpots(70,3,14.5).forEach(([x,z],i)=>{ const st=new THREE.Mesh(new THREE.CylinderGeometry(0.015,0.015,0.3,4),stem); st.position.set(x,0.15,z); g.add(st); const h=new THREE.Mesh(new THREE.SphereGeometry(0.07,6,5),fm[i%5]); h.position.set(x,0.32,z); g.add(h); });
+  islandSpots(6,4,17,false).forEach(([x,z])=>{ const r=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.4,1)),rockMat); r.position.set(x,0.15,z); r.rotation.set(rand(0,3),rand(0,3),0); g.add(r); });
+  const fire=campfire(g,0,3,0xff9a1f,0xffe14d,wood);
+  farIslands(g,FAR,0xffe08a,(x,z,s)=>{ const m=new THREE.Mesh(new THREE.IcosahedronGeometry(s*0.7,1),toonMat({color:0x58c94c,flatShading:true})); m.scale.y=0.55; m.position.set(x,WATER_Y+s*0.15,z); g.add(m); });
+  return t=>fire(t);
+}
+
+// --- Frosty Fjord: snowy pines, igloo, snowman, icebergs, falling snow
+function buildFjord(g){
+  islandBase(g,0xd6ecf5,0xffffff);
+  buildDock(g,[0x8d6e63,0x795548,0xa1887f],0x5d4037,0x80d8ff);
+  const pineM=toonMat({color:0x1f6b4a}), snowM=toonMat({color:0xffffff}), trunk=toonMat({color:0x5d4037});
+  islandSpots(14,5,16).forEach(([x,z])=>{ const s=rand(0.8,1.3), t=new THREE.Group();
+    const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.15*s,0.2*s,1*s,7),trunk); tr.position.y=0.5*s; t.add(tr);
+    for(let i=0;i<3;i++){ const c=new THREE.Mesh(new THREE.ConeGeometry((1.4-i*0.35)*s,1.5*s,8),pineM); c.position.y=(1.3+i*0.85)*s; t.add(c);
+      const cap=new THREE.Mesh(new THREE.ConeGeometry((0.75-i*0.18)*s,0.6*s,8),snowM); cap.position.y=(1.75+i*0.85)*s; t.add(cap); }
+    t.position.set(x,0,z); g.add(t); });
+  const ice=toonMat({color:0xe3f6ff});
+  const ig=new THREE.Mesh(new THREE.SphereGeometry(2,16,10,0,Math.PI*2,0,Math.PI/2),ice); ig.position.set(-9,0,4); g.add(ig);
+  const tun=new THREE.Mesh(new THREE.CylinderGeometry(0.8,0.8,1.6,12,1,false,0,Math.PI),ice); tun.rotation.set(Math.PI/2,0,Math.PI/2); tun.position.set(-7,0.05,4); g.add(tun);
+  const hole=new THREE.Mesh(new THREE.CircleGeometry(0.6,12),new THREE.MeshBasicMaterial({color:0x1a2a3a})); hole.position.set(-6.18,0.45,4); hole.rotation.y=Math.PI/2; g.add(hole);
+  const sm=new THREE.Group(); sm.position.set(7,0,2); g.add(sm);
+  [[0.7,0.6],[0.5,1.5],[0.35,2.2]].forEach(([r,y])=>{ const b=new THREE.Mesh(new THREE.SphereGeometry(r,14,10),snowM); b.position.y=y; sm.add(b); });
+  const nose=new THREE.Mesh(new THREE.ConeGeometry(0.07,0.35,8),toonMat({color:0xff7043})); nose.rotation.x=-Math.PI/2; nose.position.set(0,2.2,-0.45); sm.add(nose);
+  for(const s of [-1,1]){ const e=new THREE.Mesh(new THREE.SphereGeometry(0.045,6,5),new THREE.MeshBasicMaterial({color:0x111111})); e.position.set(s*0.12,2.3,-0.3); sm.add(e); }
+  const scarf=new THREE.Mesh(new THREE.TorusGeometry(0.4,0.08,6,16),toonMat({color:0xe53935})); scarf.rotation.x=Math.PI/2; scarf.position.y=1.9; sm.add(scarf);
+  sm.rotation.y=Math.PI;
+  const fire=campfire(g,0,3,0xff9a1f,0xffe14d,toonMat({color:0x8d6e63}));
+  const bergM=toonMat({color:0xf0fbff,flatShading:true}), bergB=toonMat({color:0x9fdcff,flatShading:true}); const bergs=[];
+  for(let i=0;i<12;i++){ const a=rand(0,Math.PI*2), r=rand(28,90), b=new THREE.Mesh(new THREE.IcosahedronGeometry(rand(1.5,5),0),i%3?bergM:bergB); b.position.set(Math.cos(a)*r,WATER_Y+rand(0,1),Math.sin(a)*r); b.scale.y=rand(0.6,1.4); g.add(b); bergs.push(b); }
+  farIslands(g,FAR,0xd6ecf5,(x,z,s)=>{ const m=new THREE.Mesh(new THREE.ConeGeometry(s*0.8,s*1.6,7),toonMat({color:0x8fa3b5,flatShading:true})); m.position.set(x,WATER_Y+s*0.7,z); g.add(m);
+    const c=new THREE.Mesh(new THREE.ConeGeometry(s*0.38,s*0.75,7),snowM); c.position.set(x,WATER_Y+s*1.13,z); g.add(c); });
+  const snow=particles(g,500,0xffffff,0.12,30,0,25);
+  return (t,dt)=>{ fire(t); bergs.forEach((b,i)=>b.position.y=WATER_Y+Math.sin(t*0.6+i)*0.15);
+    for(let i=0;i<snow.n;i++){ snow.pos[i*3+1]-=dt*(1.2+(i%5)*0.2); snow.pos[i*3]+=Math.sin(t+i)*dt*0.3; if(snow.pos[i*3+1]<0){ snow.pos[i*3+1]=25; } }
+    snow.geo.attributes.position.needsUpdate=true; };
+}
+
+// --- Glowshroom Bayou: dusk swamp, giant glowing mushrooms, lily pads, fireflies
+function buildSwamp(g){
+  islandBase(g,0x6b5a3e,0x3d6b3a);
+  buildDock(g,[0x5d4a36,0x4e3d2c,0x6a5640],0x3b2d1f,0xb388ff);
+  const capCols=[0xff4fa3,0x40e0ff,0xb388ff,0x76ff03], stemM=toonMat({color:0xf3e5d0});
+  const caps=[];
+  islandSpots(14,4,16).forEach(([x,z],i)=>{ const s=rand(0.6,1.8), t=new THREE.Group();
+    const st=new THREE.Mesh(new THREE.CylinderGeometry(0.14*s,0.22*s,1.6*s,8),stemM); st.position.y=0.8*s; t.add(st);
+    const cm=new THREE.MeshBasicMaterial({color:capCols[i%4]}); const cap=new THREE.Mesh(new THREE.SphereGeometry(0.75*s,14,8,0,Math.PI*2,0,Math.PI/2),cm); cap.position.y=1.55*s; t.add(cap);
+    for(let k=0;k<5;k++){ const d=new THREE.Mesh(new THREE.SphereGeometry(0.09*s,6,4),new THREE.MeshBasicMaterial({color:0xffffff})); const a=k*1.3; d.position.set(Math.cos(a)*0.45*s,1.55*s+0.45*s,Math.sin(a)*0.45*s); t.add(d); }
+    t.position.set(x,0,z); g.add(t); caps.push(cm); });
+  const willow=toonMat({color:0x2e4d2a}), bark=toonMat({color:0x3b2d1f});
+  islandSpots(6,9,16).forEach(([x,z])=>{ const t=new THREE.Group(); const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.45,3.5,7),bark); tr.position.y=1.75; t.add(tr);
+    for(let k=0;k<6;k++){ const a=k/6*Math.PI*2; const d=new THREE.Mesh(new THREE.ConeGeometry(0.5,2.6,5),willow); d.position.set(Math.cos(a)*1.1,3,Math.sin(a)*1.1); d.rotation.x=Math.PI; t.add(d); }
+    const crown=new THREE.Mesh(new THREE.IcosahedronGeometry(1.6,1),willow); crown.position.y=4; crown.scale.y=0.6; t.add(crown); t.position.set(x,0,z); g.add(t); });
+  const padM=toonMat({color:0x4caf50}), flowerM=new THREE.MeshBasicMaterial({color:0xff80ab});
+  for(let i=0;i<40;i++){ const a=rand(0,Math.PI*2), r=rand(ISLAND_R+3,ISLAND_R+25); const x=Math.cos(a)*r, z=Math.sin(a)*r; if(Math.abs(x)<4 && z<-15) continue;
+    const p=new THREE.Mesh(new THREE.CylinderGeometry(rand(0.4,0.8),rand(0.4,0.8),0.04,12,1,false,0.3,Math.PI*2-0.3),padM); p.position.set(x,WATER_Y+0.1,z); g.add(p);
+    if(i%4===0){ const f=new THREE.Mesh(new THREE.SphereGeometry(0.12,6,5),flowerM); f.position.set(x,WATER_Y+0.2,z); g.add(f); } }
+  const fire=campfire(g,0,3,0x69f0ae,0xccff90,bark); // spooky green fire
+  farIslands(g,FAR,0x4a3f2e,(x,z,s)=>{ const m=new THREE.Mesh(new THREE.IcosahedronGeometry(s*0.6,1),toonMat({color:0x23401f,flatShading:true})); m.scale.y=0.7; m.position.set(x,WATER_Y+s*0.2,z); g.add(m); });
+  const flies=particles(g,140,0xfff59d,0.18,26,0.5,5);
+  return (t,dt)=>{ fire(t); caps.forEach((m,i)=>m.color.setHex(capCols[i%4]).multiplyScalar(0.75+Math.sin(t*1.5+i)*0.25));
+    for(let i=0;i<flies.n;i++){ flies.pos[i*3]+=Math.sin(t*0.7+i)*dt*0.6; flies.pos[i*3+1]+=Math.cos(t*0.9+i*1.7)*dt*0.3; flies.pos[i*3+2]+=Math.cos(t*0.5+i)*dt*0.6; }
+    flies.pts.material.opacity=0.6+Math.sin(t*3)*0.3; flies.geo.attributes.position.needsUpdate=true; };
+}
+
+// --- Lava Lagoon: dark rock island in a sea of lava, a volcano, rising embers
+function buildLava(g){
+  islandBase(g,0x4a3f3a,0x2b2b33);
+  buildDock(g,[0x5c5c66,0x4a4a52,0x6a6a74],0x2a2a30,0xff6d00);
+  const obs=toonMat({color:0x1e1e24,flatShading:true}), crack=new THREE.MeshBasicMaterial({color:0xff5a14});
+  islandSpots(16,4,17,false).forEach(([x,z])=>{ const s=rand(0.5,1.6); const r=new THREE.Mesh(new THREE.DodecahedronGeometry(s,0),obs); r.position.set(x,s*0.4,z); r.rotation.set(rand(0,3),rand(0,3),0); g.add(r);
+    const c=new THREE.Mesh(new THREE.BoxGeometry(s*1.4,0.05,0.08),crack); c.position.set(x,s*0.42+0.02,z); c.rotation.y=rand(0,3); g.add(c); });
+  // crystal spikes
+  const crys=new THREE.MeshBasicMaterial({color:0xff8a50});
+  islandSpots(8,6,15).forEach(([x,z])=>{ for(let k=0;k<3;k++){ const c=new THREE.Mesh(new THREE.ConeGeometry(0.18,rand(0.8,1.6),5),crys); c.position.set(x+rand(-0.4,0.4),0.5,z+rand(-0.4,0.4)); c.rotation.set(rand(-0.4,0.4),0,rand(-0.4,0.4)); g.add(c); } });
+  // big volcano behind the island
+  const vol=new THREE.Mesh(new THREE.CylinderGeometry(14,70,65,16,1,true),toonMat({color:0x3a2a28,flatShading:true})); vol.position.set(40,WATER_Y+32,140); g.add(vol);
+  const vtop=new THREE.Mesh(new THREE.CircleGeometry(14,16),new THREE.MeshBasicMaterial({color:0xff6d00})); vtop.rotation.x=-Math.PI/2; vtop.position.set(40,WATER_Y+64,140); g.add(vtop);
+  const smokeM=toonMat({color:0x444444}), smoke=[];
+  for(let i=0;i<8;i++){ const s=new THREE.Mesh(new THREE.IcosahedronGeometry(rand(5,9),1),smokeM); s.userData.o=i/8; g.add(s); smoke.push(s); }
+  const glow=new THREE.PointLight(0xff5a14,4,30); glow.position.set(0,2,-26); g.add(glow);
+  farIslands(g,FAR,0x2b2b33,(x,z,s)=>{ const m=new THREE.Mesh(new THREE.ConeGeometry(s*0.7,s*1.3,6),obs); m.position.set(x,WATER_Y+s*0.6,z); g.add(m); });
+  const embers=particles(g,300,0xffab40,0.15,30,0,20);
+  // cooled crust plates drifting on the lava + bright bubbles popping
+  const crustM=toonMat({color:0x3a1d12,flatShading:true}), crusts=[];
+  for(let i=0;i<70;i++){ const a=rand(0,Math.PI*2), r=rand(ISLAND_R+4,110); const c=new THREE.Mesh(new THREE.CircleGeometry(rand(1.2,4.5),6),crustM);
+    c.rotation.x=-Math.PI/2; c.rotation.z=rand(0,6); c.position.set(Math.cos(a)*r,WATER_Y+0.3,Math.sin(a)*r); c.userData={a,r,sp:rand(0.004,0.012)}; g.add(c); crusts.push(c); }
+  const bubM=new THREE.MeshBasicMaterial({color:0xffe082}), bubs=[];
+  for(let i=0;i<14;i++){ const b=new THREE.Mesh(new THREE.SphereGeometry(0.35,10,6,0,Math.PI*2,0,Math.PI/2),bubM); b.userData={o:rand(0,1)}; g.add(b); bubs.push(b); }
+  return (t,dt)=>{ crusts.forEach(c=>{ const u=c.userData; const a=u.a+t*u.sp; c.position.x=Math.cos(a)*u.r; c.position.z=Math.sin(a)*u.r; });
+    bubs.forEach((b,i)=>{ const k=(t*0.4+b.userData.o)%1; if(k<0.02){ const a=rand(0,Math.PI*2), r=rand(ISLAND_R+3,45); b.position.set(Math.cos(a)*r,WATER_Y,Math.sin(a)*r); } b.position.y=WATER_Y+0.2; b.scale.setScalar(k<0.8?k*1.5:Math.max(0.01,(1-k)*6)); });
+    smoke.forEach(s=>{ const k=(t*0.05+s.userData.o)%1; s.position.set(40+Math.sin(k*6)*6,WATER_Y+66+k*60,140); s.scale.setScalar(0.6+k*1.6); });
+    vtop.material.color.setHex(0xff6d00).multiplyScalar(0.8+Math.sin(t*2)*0.2);
+    for(let i=0;i<embers.n;i++){ embers.pos[i*3+1]+=dt*(0.8+(i%4)*0.4); embers.pos[i*3]+=Math.sin(t*2+i)*dt*0.4; if(embers.pos[i*3+1]>20) embers.pos[i*3+1]=0; }
+    embers.geo.attributes.position.needsUpdate=true; };
+}
+
+// --- Candy Reef: lollipop trees, candy canes, gumdrops, floating donuts
+function buildCandy(g){
+  islandBase(g,0xe8b07a,0xa8f0c8);
+  buildDock(g,[0xff9ec7,0xffffff,0x9ee8ff],0xff4f9a,0xfff176);
+  const stickM=toonMat({color:0xffffff}), swirlCols=[0xff4081,0x7c4dff,0x00e5ff,0xffea00,0x76ff03].map(c=>toonMat({color:c}));
+  islandSpots(10,5,15).forEach(([x,z],i)=>{ const t=new THREE.Group(); const s=rand(0.9,1.4);
+    const st=new THREE.Mesh(new THREE.CylinderGeometry(0.08*s,0.08*s,2.6*s,8),stickM); st.position.y=1.3*s; t.add(st);
+    const disc=new THREE.Mesh(new THREE.CylinderGeometry(0.9*s,0.9*s,0.25*s,20),swirlCols[i%5]); disc.rotation.x=Math.PI/2; disc.position.y=3*s; t.add(disc);
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(0.55*s,0.12*s,8,20),stickM); ring.position.set(0,3*s,0.14*s); t.add(ring);
+    t.position.set(x,0,z); t.rotation.y=Math.random()*6; g.add(t); });
+  const red=toonMat({color:0xff1744});
+  islandSpots(7,6,16).forEach(([x,z])=>{ const t=new THREE.Group();
+    for(let k=0;k<8;k++){ const seg=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,0.3,8),k%2?red:stickM); seg.position.y=0.15+k*0.3; t.add(seg); }
+    const hook=new THREE.Mesh(new THREE.TorusGeometry(0.35,0.12,8,16,Math.PI),red); hook.position.set(0.35,2.4,0); t.add(hook);
+    t.position.set(x,0,z); t.rotation.y=Math.random()*6; g.add(t); });
+  islandSpots(20,3,16).forEach(([x,z],i)=>{ const d=new THREE.Mesh(new THREE.SphereGeometry(rand(0.25,0.5),12,8,0,Math.PI*2,0,Math.PI/2),swirlCols[i%5]); d.position.set(x,0,z); d.scale.y=1.3; g.add(d); });
+  // cupcake hut
+  const cup=new THREE.Mesh(new THREE.CylinderGeometry(2,1.6,2,16),toonMat({color:0xffb74d})); cup.position.set(-8,1,5); g.add(cup);
+  const icing=new THREE.Mesh(new THREE.SphereGeometry(2.3,16,10,0,Math.PI*2,0,Math.PI/2),toonMat({color:0xff80ab})); icing.position.set(-8,2,5); g.add(icing);
+  const cherry=new THREE.Mesh(new THREE.SphereGeometry(0.4,12,8),red); cherry.position.set(-8,4.4,5); g.add(cherry);
+  const donutCols=[0xff80ab,0x8d6e63,0xfff59d].map(c=>toonMat({color:c})), dough=toonMat({color:0xffcc80}); const donuts=[];
+  for(let i=0;i<14;i++){ const a=rand(0,Math.PI*2), r=rand(26,70); const d=new THREE.Group();
+    const b=new THREE.Mesh(new THREE.TorusGeometry(1.2,0.55,10,20),dough); d.add(b); const ic=new THREE.Mesh(new THREE.TorusGeometry(1.2,0.45,10,20),donutCols[i%3]); ic.position.z=0.18; d.add(ic);
+    d.rotation.x=-Math.PI/2; d.position.set(Math.cos(a)*r,WATER_Y+0.2,Math.sin(a)*r); g.add(d); donuts.push(d); }
+  farIslands(g,FAR,0xe8b07a,(x,z,s)=>{ const m=new THREE.Mesh(new THREE.SphereGeometry(s*0.6,16,10,0,Math.PI*2,0,Math.PI/2),swirlCols[Math.floor(Math.abs(x))%5]); m.position.set(x,WATER_Y+0.3,z); m.scale.y=1.4; g.add(m); });
+  return (t)=>{ donuts.forEach((d,i)=>{ d.position.y=WATER_Y+0.2+Math.sin(t+i)*0.12; d.rotation.z=t*0.1+i; }); };
+}
+
+const ZONE_BUILDERS = {cove:buildCove, fjord:buildFjord, swamp:buildSwamp, lava:buildLava, candy:buildCandy};
+const zoneCache = {};
+let curZone = null, zoneUpdate = ()=>{};
+function setZone(id){
+  if(!ZONE_BUILDERS[id]) id='cove';
+  if(curZone){ scene.remove(zoneCache[curZone].g); }
+  if(!zoneCache[id]){ const g=new THREE.Group(); const upd=ZONE_BUILDERS[id](g); zoneCache[id]={g,upd}; }
+  scene.add(zoneCache[id].g); zoneUpdate=zoneCache[id].upd; curZone=id;
+  const T=THEMES[id];
+  skyU.top.value.setHex(T.top); skyU.hor.value.setHex(T.hor); scene.fog.color.setHex(T.hor); scene.background.setHex(T.hor);
+  scene.fog.near=T.fog[0]; scene.fog.far=T.fog[1];
+  waterMat.color.setHex(T.water); waterMat.emissive.setHex(T.glow); waterMat.emissiveIntensity=T.glow?0.9:0;
+  seabed.material.color.setHex(T.seabed); shallow.material.color.setHex(T.shallow); foam.material.color.setHex(T.foam);
+  hemi.color.setHex(T.hemi[0]); hemi.groundColor.setHex(T.hemi[1]); hemi.intensity=T.hemi[2];
+  sun.color.setHex(T.sun[0]); sun.intensity=T.sun[1]; sunDisc.material.color.setHex(T.disc); sunHalo.material.color.setHex(T.disc);
+  cloudMat.color.setHex(T.cloud);
+}
+
+// fish jumping out of the water now and then
 const jumpers=[];
 function spawnJumper(){
-  const a=Math.random()*Math.PI*2, r=rand(26,60);
-  const f=FISH[1+Math.floor(Math.random()*6)];
-  const m=makeFishMesh(f,1); m.scale.setScalar(1.6);
+  const pool=FISH.filter(f=>f.zone===curZone && (f.r==='common'||f.r==='uncommon')); if(!pool.length) return;
+  const a=Math.random()*Math.PI*2, r=rand(26,60), f=pool[Math.floor(Math.random()*pool.length)];
+  const m=makeFishMesh(f,1,false); m.scale.setScalar(1.6);
   m.position.set(Math.cos(a)*r,WATER_Y,Math.sin(a)*r); m.rotation.y=Math.random()*6; scene.add(m);
   jumpers.push({m,t:0,x:m.position.x,z:m.position.z,dx:Math.cos(m.rotation.y),dz:-Math.sin(m.rotation.y)});
 }
@@ -377,27 +590,121 @@ function updateLine(line,a,b,sag){
   line.geometry.attributes.position.needsUpdate=true;
 }
 
-function makeFishMesh(f, w){
-  const g = new THREE.Group();
-  const size = clamp(0.14 + Math.cbrt(w)*0.11, 0.14, 0.75);
-  if(f.id==='boot'){
-    const m=toonMat({color:f.col});
-    const a=new THREE.Mesh(new THREE.BoxGeometry(0.12,0.25,0.12),m); a.position.y=0.08;
-    const b=new THREE.Mesh(new THREE.BoxGeometry(0.12,0.1,0.28),m); b.position.set(0,-0.05,-0.08);
-    g.add(a,b); return g;
+// ---- fish models: the rarer the fish, the flashier it looks
+const TIER = {junk:0, common:1, uncommon:2, rare:3, epic:4, legendary:5};
+const RAINBOW_U = {uTime:{value:0}};
+function rainbowMat(){
+  const m=new THREE.MeshToonMaterial({color:0xffffff, gradientMap:GRAD, emissive:0x333333});
+  m.onBeforeCompile=sh=>{
+    sh.uniforms.uTime=RAINBOW_U.uTime;
+    sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vRP;').replace('#include <begin_vertex>','#include <begin_vertex>\nvRP=position;');
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uTime; varying vec3 vRP;\nvec3 hue(float h){ return clamp(abs(mod(h*6.0+vec3(0.0,4.0,2.0),6.0)-3.0)-1.0,0.0,1.0); }')
+      .replace('vec4 diffuseColor = vec4( diffuse, opacity );','vec4 diffuseColor = vec4( hue(fract(vRP.x*0.6+vRP.y*0.3+uTime*0.35))*0.85+0.15, opacity );');
+  };
+  return m;
+}
+function spriteTex(kind){
+  const c=document.createElement('canvas'); c.width=c.height=64; const x=c.getContext('2d');
+  const g=x.createRadialGradient(32,32,0,32,32,32); g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(kind==='star'?0.15:0.4,'rgba(255,255,255,0.6)'); g.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle=g; x.fillRect(0,0,64,64);
+  if(kind==='star'){ x.fillStyle='#fff'; x.beginPath(); for(let i=0;i<8;i++){ const a=i/8*Math.PI*2, r=i%2?6:30; x.lineTo(32+Math.cos(a)*r,32+Math.sin(a)*r); } x.fill(); }
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
+}
+const STAR_TEX=spriteTex('star'), GLOW_TEX=spriteTex('glow');
+const fishFx=[];
+function updateFishFx(t,dt){
+  for(let i=fishFx.length-1;i>=0;i--){ const e=fishFx[i];
+    if(e.g.parent) e.seen=true; else if(e.seen){ fishFx.splice(i,1); continue; }
+    e.update(t,dt); }
+}
+function makeFishMesh(f, w, fx=true){
+  const outer=new THREE.Group(), g=new THREE.Group(); outer.add(g);
+  const size = clamp(0.14 + Math.cbrt(w)*0.11, 0.14, 0.75); g.scale.setScalar(size);
+  const tier=TIER[f.r]||1;
+  if(f.shape==='boot'){
+    const m=toonMat({color:f.col}), sole=toonMat({color:f.col2});
+    const a=new THREE.Mesh(new THREE.BoxGeometry(0.5,1,0.5),m); a.position.y=0.3;
+    const b=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.4,1.1),m); b.position.set(0,-0.2,-0.3);
+    const c=new THREE.Mesh(new THREE.BoxGeometry(0.55,0.12,1.15),sole); c.position.set(0,-0.42,-0.3);
+    g.add(a,b,c); return outer;
   }
-  const mat = toonMat({color:f.col,
-    emissive: f.r==='legendary'||f.r==='epic' ? f.col : 0x000000, emissiveIntensity: f.r==='legendary'?0.6:0.2,
-    transparent: f.id==='ghost', opacity: f.id==='ghost'?0.7:1});
-  const body = new THREE.Mesh(new THREE.SphereGeometry(1,16,12), mat);
-  const flat = f.id==='ray' ? [1,0.18,1] : f.id==='puffer' ? [0.8,0.8,0.8] : [1,0.5,0.3];
-  body.scale.set(flat[0]*size, flat[1]*size, flat[2]*size); g.add(body);
-  const tail = new THREE.Mesh(new THREE.ConeGeometry(size*0.45,size*0.6,4), mat);
-  tail.rotation.z = Math.PI/2; tail.position.x = size*1.15; tail.scale.z=0.3; g.add(tail);
-  if(f.id==='sword'){ const n=new THREE.Mesh(new THREE.ConeGeometry(size*0.06,size*1.2,6),mat); n.rotation.z=-Math.PI/2; n.position.x=-size*1.5; g.add(n); }
-  const eyeM = new THREE.MeshBasicMaterial({color:0x111111});
-  for(const s of [1,-1]){ const e=new THREE.Mesh(new THREE.SphereGeometry(size*0.08,8,6),eyeM); e.position.set(-size*0.6,size*0.12,s*flat[2]*size*0.85); g.add(e); }
-  return g;
+  // body material by rarity
+  let mat;
+  if(tier>=5) mat=rainbowMat();
+  else if(tier===4) mat=toonMat({color:f.col, emissive:f.col, emissiveIntensity:0.45});
+  else if(tier===3) mat=new THREE.MeshStandardMaterial({color:f.col, metalness:0.55, roughness:0.22, emissive:f.col, emissiveIntensity:0.08});
+  else mat=toonMat({color:f.col});
+  if(f.id==='ghost'){ mat.transparent=true; mat.opacity=0.6; }
+  const finMat = tier>=5 ? mat : tier>=4 ? new THREE.MeshBasicMaterial({color:f.col2}) : toonMat({color:tier>=2?f.col2:f.col});
+  const accent = toonMat({color:f.col2});
+  const S=(r,a=16,b=12)=>new THREE.SphereGeometry(r,a,b);
+  const add=(geo,m,x,y,z,sx=1,sy=1,sz=1,par=g)=>{ const o=new THREE.Mesh(geo,m); o.position.set(x,y,z); o.scale.set(sx,sy,sz); par.add(o); return o; };
+  let bodyS=[1,0.55,0.32], tail=null, wiggle=[];
+  const shape=f.shape;
+  if(shape==='ray'){ bodyS=[1,0.16,1]; add(S(1),mat,0,0,0,...bodyS); const tl=add(new THREE.ConeGeometry(0.08,1.6,6),finMat,1.7,0,0); tl.rotation.z=Math.PI/2; tail=tl; }
+  else if(shape==='puffer'){ bodyS=[0.85,0.8,0.8]; add(S(1),mat,0,0,0,...bodyS);
+    for(let i=0;i<16;i++){ const v=new THREE.Vector3(rand(-1,1),rand(-1,1),rand(-1,1)).normalize(); const sp=add(new THREE.ConeGeometry(0.07,0.3,5),finMat,v.x*0.85,v.y*0.8,v.z*0.8); sp.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),v); }
+    tail=add(new THREE.ConeGeometry(0.3,0.4,4),finMat,1.0,0,0,1,1,0.3); tail.rotation.z=Math.PI/2; }
+  else if(shape==='eel'){ bodyS=[0.5,0.42,0.38];
+    for(let i=0;i<7;i++){ const r=0.42-i*0.045; const seg=add(S(1),mat,i*0.55-0.6,0,0,0.42,r,r); wiggle.push(seg); }
+    const fin=add(new THREE.BoxGeometry(3.2,0.25,0.04),finMat,1.0,0.38,0); wiggle.fin=fin; }
+  else if(shape==='jelly'){ bodyS=[0.8,0.7,0.8];
+    add(new THREE.SphereGeometry(1,16,10,0,Math.PI*2,0,Math.PI/2),mat,0,0,0,0.8,0.7,0.8);
+    for(let i=0;i<8;i++){ const a=i/8*Math.PI*2; const tt=add(new THREE.CylinderGeometry(0.04,0.02,1.2,5),finMat,Math.cos(a)*0.5,-0.6,Math.sin(a)*0.5); wiggle.push(tt); } }
+  else if(shape==='crab'){ bodyS=[0.9,0.45,0.75]; add(S(1),mat,0,0,0,...bodyS);
+    for(const s of [-1,1]){ add(S(0.3),finMat,-0.95,0.1,s*0.6,1.2,0.8,0.8); const arm=add(new THREE.CylinderGeometry(0.06,0.06,0.5,5),finMat,-0.6,0,s*0.55); arm.rotation.z=Math.PI/2;
+      for(let k=0;k<3;k++){ const leg=add(new THREE.CylinderGeometry(0.04,0.03,0.6,5),finMat,k*0.35-0.2,-0.25,s*0.85); leg.rotation.x=s*0.9; } } }
+  else { // fish, long, sword
+    if(shape==='long') bodyS=[1.5,0.38,0.28];
+    add(S(1),mat,0,0,0,...bodyS);
+    const tx=bodyS[0]+0.05;
+    tail=new THREE.Group(); tail.position.x=tx; g.add(tail);
+    for(const s of [1,-1]){ const c=add(new THREE.ConeGeometry(0.3,0.75,4),finMat,0.3,s*0.22,0,1,1,0.25,tail); c.rotation.z=Math.PI/2+s*0.6; }
+    const dor=add(new THREE.ConeGeometry(0.35,0.6,3),finMat,0.1,bodyS[1]+0.15,0,1,1,0.2); dor.rotation.z=-0.4;
+    for(const s of [1,-1]){ const p=add(new THREE.ConeGeometry(0.15,0.4,3),finMat,-0.25,-0.15,s*(bodyS[2]+0.05),1,1,0.3); p.rotation.set(s*0.6,0,-1.9); }
+    if(shape==='sword'){ const n=add(new THREE.ConeGeometry(0.06,1.4,6),accent,-bodyS[0]-0.6,0.05,0); n.rotation.z=Math.PI/2; }
+  }
+  // patterns by rarity
+  if(tier===2 && (shape==='fish'||shape==='long'||shape==='sword')){
+    for(const x of [-0.35,0.05,0.45]){ const k=x/bodyS[0], r=Math.sqrt(Math.max(0.05,1-k*k));
+      const ring=add(new THREE.TorusGeometry(1,0.07,6,20),accent,x,0,0,1,bodyS[1]*r,bodyS[2]*r*1.02); ring.rotation.y=Math.PI/2; }
+  }
+  if(tier>=3 && shape!=='eel' && shape!=='jelly'){
+    for(let i=0;i<7;i++){ const u=rand(-0.6,0.6), v=rand(-0.6,0.8), side=i%2?1:-1;
+      const x=u*bodyS[0], y=v*bodyS[1]*0.7, zz=side*bodyS[2]*Math.sqrt(Math.max(0.05,1-u*u-(v*0.7)*(v*0.7)));
+      add(S(0.09,8,6),tier>=4?new THREE.MeshBasicMaterial({color:f.col2}):accent,x,y,zz,1,1,0.4); }
+  }
+  // big cartoon eyes
+  const ew=new THREE.MeshBasicMaterial({color:0xffffff}), eb=new THREE.MeshBasicMaterial({color:0x111111});
+  const ex=shape==='jelly'?0:-bodyS[0]*0.62, ey=shape==='jelly'?0.25:bodyS[1]*0.25;
+  for(const s of [1,-1]){ const ez=s*bodyS[2]*0.82;
+    add(S(0.17,10,8),ew,ex,ey,ez,1,1,0.5); add(S(0.1,8,6),eb,ex-0.04,ey,ez+s*0.07,1,1,0.5); }
+  if(tier>=5){ // crown
+    const gold=new THREE.MeshStandardMaterial({color:0xffd54f,metalness:0.9,roughness:0.2,emissive:0x8a6d00,emissiveIntensity:0.5});
+    const cr=new THREE.Group(); cr.position.set(-bodyS[0]*0.3,bodyS[1]+0.12,0); g.add(cr);
+    add(new THREE.CylinderGeometry(0.28,0.28,0.12,12,1,true),gold,0,0,0,1,1,1,cr);
+    for(let i=0;i<5;i++){ const a=i/5*Math.PI*2; add(new THREE.ConeGeometry(0.06,0.2,4),gold,Math.cos(a)*0.28,0.15,Math.sin(a)*0.28,1,1,1,cr); }
+  }
+  // sparkle aura for rare and up
+  const sparks=[]; let halo=null, light=null;
+  if(fx && tier>=3){
+    const n = tier===3?5 : tier===4?10 : 16;
+    for(let i=0;i<n;i++){ const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:STAR_TEX,color:tier>=5?new THREE.Color().setHSL(i/n,1,0.7):f.col2,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));
+      sp.userData={a:rand(0,6.28),r:rand(1.1,1.8),y:rand(-0.6,0.6),s:rand(0.15,0.3),sp:rand(0.8,2)}; g.add(sp); sparks.push(sp); }
+    if(tier>=4){ halo=new THREE.Sprite(new THREE.SpriteMaterial({map:GLOW_TEX,color:f.col2,transparent:true,opacity:tier>=5?0.75:0.5,depthWrite:false,blending:THREE.AdditiveBlending})); halo.scale.setScalar(tier>=5?4.2:3.2); g.add(halo); }
+    if(tier>=5){ light=new THREE.PointLight(f.col2,2,3); g.add(light); }
+  }
+  if(fx){
+    const off=rand(0,6);
+    fishFx.push({g:outer, update:(t)=>{
+      if(tail) tail.rotation.y=Math.sin(t*9+off)*0.35;
+      wiggle.forEach((w,i)=>{ if(shape==='eel') w.position.z=Math.sin(t*5-i*0.8+off)*0.18; else w.rotation.x=Math.sin(t*3+i)*0.25; });
+      sparks.forEach(sp=>{ const u=sp.userData; const a=u.a+t*u.sp; sp.position.set(Math.cos(a)*u.r,u.y+Math.sin(t*2+u.a)*0.2,Math.sin(a)*u.r); const k=u.s*(0.6+0.4*Math.sin(t*6+u.a)); sp.scale.set(k,k,1); });
+      if(halo) halo.material.opacity=(tier>=5?0.65:0.4)+Math.sin(t*3)*0.15;
+      if(light) light.color.setHSL((t*0.2)%1,1,0.6);
+    }});
+  }
+  return outer;
 }
 
 function makeHat(id){
@@ -426,57 +733,53 @@ function makeHat(id){
   return g;
 }
 
-const SPECIES=[{id:'cat',e:'🐱'},{id:'bear',e:'🐻'},{id:'frog',e:'🐸'},{id:'bunny',e:'🐰'},{id:'duck',e:'🦆'},{id:'fox',e:'🦊'}];
 const OUTLINE = new THREE.MeshBasicMaterial({color:0x1d2b3a, side:THREE.BackSide});
-// chunky cartoon critter: round bean body, big head, googly eyes, floating hands
-function makeAvatar(name,color,hat,sp='cat'){
-  if(!SPECIES.some(s=>s.id===sp)) sp='cat';
+// original cartoon gorilla: big round chest, long arms with big hands, little legs, friendly face
+function makeAvatar(name,color,hat){
   const g = new THREE.Group();
-  const col = new THREE.Color(color);
-  const main = toonMat({color:col});
-  const light = toonMat({color:col.clone().lerp(new THREE.Color(0xffffff),0.55)});
+  const fur = new THREE.Color(color);
+  const furM = toonMat({color:fur});
+  const darkM = toonMat({color:fur.clone().multiplyScalar(0.65)});
+  const chestM = toonMat({color:fur.clone().lerp(new THREE.Color(0xd9c2a3),0.55)});
+  const faceM = toonMat({color:0xe9cfb0});
   const white = new THREE.MeshBasicMaterial({color:0xffffff}), black = new THREE.MeshBasicMaterial({color:0x14181f});
-  const pink = new THREE.MeshBasicMaterial({color:0xff8fb1, transparent:true, opacity:0.7});
+  const pink = new THREE.MeshBasicMaterial({color:0xff8fb1, transparent:true, opacity:0.6});
   const add=(par,geo,mat,x,y,z,ol,sx=1,sy=1,sz=1)=>{ const m=new THREE.Mesh(geo,mat); m.position.set(x,y,z); m.scale.set(sx,sy,sz); par.add(m);
-    if(ol){ const o=new THREE.Mesh(geo,OUTLINE); o.position.copy(m.position); o.rotation.copy(m.rotation); o.scale.set(sx*1.07,sy*1.07,sz*1.07); par.add(o); m.userData.ol=o; } return m; };
+    if(ol){ const o=new THREE.Mesh(geo,OUTLINE); o.position.copy(m.position); o.scale.set(sx*1.06,sy*1.06,sz*1.06); par.add(o); m.userData.ol=o; } return m; };
   const S=(r,w=14,h=10)=>new THREE.SphereGeometry(r,w,h);
-  // body + belly + feet (forward is -Z)
-  add(g,S(0.32,16,12),main,0,0.52,0,true,1,1.2,0.95);
-  add(g,S(0.24),light,0,0.48,-0.13,false,1,1.15,0.6);
-  for(const s of [-1,1]) add(g,S(0.12,10,8),main,s*0.15,0.08,-0.06,true,1,0.55,1.35);
+  // legs + feet
+  for(const s of [-1,1]){ add(g,S(0.15),darkM,s*0.17,0.22,0,true,1,1.3,1); add(g,S(0.14),faceM,s*0.18,0.06,-0.07,true,1,0.5,1.4); }
+  // big round chest/body (forward is -Z)
+  add(g,S(0.42,18,14),furM,0,0.72,0,true,1.05,1,0.9);
+  add(g,S(0.3),chestM,0,0.72,-0.2,false,1.05,1,0.55);
   // head
-  const head = new THREE.Group(); head.position.y=1.12; g.add(head);
-  add(head,S(0.36,18,14),main,0,0,0,true);
-  add(head,S(0.2),light,0,-0.1,-0.24,false,1.2,0.75,0.6); // muzzle
-  const eyeY = sp==='frog'?0.26:0.06, eyeX = sp==='frog'?0.17:0.13, eyeR = sp==='frog'?0.12:0.1;
+  const head=new THREE.Group(); head.position.set(0,1.28,-0.04); g.add(head);
+  add(head,S(0.3,18,14),furM,0,0,0,true,1,0.95,1);
+  add(head,S(0.24),faceM,0,-0.05,-0.15,false,1.05,0.85,0.6);        // face mask
+  add(head,S(0.15),faceM,0,-0.13,-0.25,true,1.25,0.8,0.8);          // muzzle
+  add(head,new THREE.CapsuleGeometry(0.06,0.3,4,8),darkM,0,0.1,-0.24,false,1,1,1).rotation.z=Math.PI/2; // brow
   for(const s of [-1,1]){
-    if(sp==='frog') add(head,S(0.13),main,s*eyeX,eyeY,-0.12,true);
-    add(head,S(eyeR),white,s*eyeX,eyeY,-0.28,false,1,1.1,0.55);
-    add(head,S(eyeR*0.6),black,s*eyeX,eyeY-0.01,-0.33,false,1,1.1,0.5);
-    add(head,S(eyeR*0.22),white,s*eyeX+0.025,eyeY+0.03,-0.36,false);
-    add(head,S(0.06),pink,s*0.22,-0.09,-0.27,false,1,0.6,0.4);
+    add(head,S(0.085),white,s*0.1,0.02,-0.27,false,1,1.1,0.5);
+    add(head,S(0.05),black,s*0.1,0.01,-0.31,false,1,1.1,0.5);
+    add(head,S(0.018),white,s*0.1+0.02,0.04,-0.335,false);
+    add(head,S(0.025),black,s*0.04,-0.1,-0.37,false);                // nostrils
+    add(head,S(0.05),pink,s*0.19,-0.1,-0.24,false,1,0.6,0.4);         // cheeks
+    add(head,S(0.08),faceM,s*0.3,0.02,0,true,0.6,1,1);                // ears
   }
-  if(sp==='cat'||sp==='fox'){
-    for(const s of [-1,1]){ const e=add(head,new THREE.ConeGeometry(0.12,0.26,4),main,s*0.21,0.3,0,true); e.rotation.z=-s*0.35; e.userData.ol.rotation.z=-s*0.35; }
-    if(sp==='fox'){ const sn=add(head,new THREE.ConeGeometry(0.11,0.24,8),light,0,-0.08,-0.4,false); sn.rotation.x=-Math.PI/2; add(head,S(0.04),black,0,-0.08,-0.52,false); }
-    else add(head,S(0.035),black,0,-0.05,-0.36,false);
-  } else if(sp==='bear'){
-    for(const s of [-1,1]) add(head,S(0.11),main,s*0.25,0.27,0,true);
-    add(head,S(0.045),black,0,-0.05,-0.38,false);
-  } else if(sp==='bunny'){
-    for(const s of [-1,1]){ const e=add(head,new THREE.CapsuleGeometry(0.07,0.32,4,8),main,s*0.12,0.48,0,true); e.rotation.z=-s*0.12; e.userData.ol.rotation.z=-s*0.12; add(head,new THREE.CapsuleGeometry(0.035,0.25,4,8),pink,s*0.12+s*0.005,0.48,-0.05,false); }
-    add(head,S(0.035),pink,0,-0.06,-0.36,false);
-  } else if(sp==='duck'){
-    add(head,S(0.14),toonMat({color:0xffa726}),0,-0.08,-0.36,true,1.1,0.35,1);
-  } else if(sp==='frog'){
-    add(head,new THREE.TorusGeometry(0.12,0.015,6,16,Math.PI),black,0,-0.1,-0.33,false).rotation.z=Math.PI;
+  add(head,new THREE.TorusGeometry(0.07,0.012,6,12,Math.PI),black,0,-0.2,-0.33,false).rotation.z=Math.PI; // smile
+  // long arms with big knuckle hands
+  const arms=[];
+  for(const s of [-1,1]){
+    const arm=new THREE.Group(); arm.position.set(s*0.43,1.0,-0.02); g.add(arm);
+    add(arm,S(0.15),furM,0,0,0,true);
+    const up=add(arm,new THREE.CapsuleGeometry(0.11,0.42,4,8),furM,s*0.06,-0.3,-0.05,true); up.rotation.z=s*0.15; up.userData.ol.rotation.z=s*0.15;
+    add(arm,S(0.16),darkM,s*0.12,-0.62,-0.12,true,1,0.9,1.1);
+    arms.push(arm);
   }
-  const hatHolder = new THREE.Group(); hatHolder.position.y = 1.12+0.29; hatHolder.scale.setScalar(1.3); g.add(hatHolder); hatHolder.add(makeHat(hat));
-  // floating hands
-  for(const s of [-1,1]) add(g,S(0.09,10,8),main,s*0.42,0.62,-0.12,true);
+  const hatHolder = new THREE.Group(); hatHolder.position.y = 1.53; hatHolder.scale.setScalar(1.15); g.add(hatHolder); hatHolder.add(makeHat(hat));
   const label = textSprite(name,{size:48,scale:0.26}); label.position.y = 1.95; g.add(label);
-  const rod = makeRod(0x8d6e63); rod.position.set(0.42,0.66,-0.15); g.add(rod);
-  g.userData = {hatHolder, label, rod, hat, name, color, sp};
+  const rod = makeRod(0x8d6e63); rod.position.set(0.56,0.4,-0.15); g.add(rod);
+  g.userData = {hatHolder, label, rod, hat, name, color, arms};
   return g;
 }
 
@@ -534,30 +837,74 @@ const shopBoard = new Board(2.4,3.2,600,800,(b,c)=>{
       if(owned){ save[selKey]=it.id; shopMsg='Equipped '+it.name; sfx.tick(); }
       else if(save.coins>=it.price){ save.coins-=it.price; save[ownKey].push(it.id); save[selKey]=it.id; shopMsg='Bought '+it.name+'!'; sfx.buy(); }
       else { shopMsg='Need '+(it.price-save.coins)+' more coins'; sfx.nope(); }
-      persist(); gearChanged(); b.redraw();
+      persist(); gearChanged(); b.redraw(); travelBoard.redraw();
     });
   });
   c.textAlign='center'; c.fillStyle='#bf360c'; c.font='bold 26px Fredoka, system-ui'; c.fillText(shopMsg,W/2,b.ch-36);
 });
+let dexTab = null; // zone shown on the Fishdex (defaults to where you are)
 const dexBoard = new Board(2.4,3.2,600,800,(b,c)=>{
-  const W=b.cw;
+  const W=b.cw, zt=dexTab||curZone||'cove';
   rr(c,0,0,W,b.ch,0,'#5d4037'); rr(c,14,14,W-28,b.ch-28,18,'#e3f2fd');
   const caught=FISH.filter(f=>save.dex[f.id]).length;
-  c.fillStyle='#0d47a1'; c.font='bold 50px Fredoka, system-ui'; c.textAlign='center'; c.fillText('FISHDEX',W/2,76);
-  c.font='bold 28px Fredoka, system-ui'; c.fillStyle='#333'; c.fillText(`${caught} / ${FISH.length} found`,W/2,116);
-  FISH.forEach((f,i)=>{ const y=140+i*42, d=save.dex[f.id];
-    rr(c,30,y,W-60,38,10, i%2?'#ffffffaa':'#bbdefb88');
-    c.fillStyle=RAR[f.r].c; c.beginPath(); c.arc(54,y+19,11,0,7); c.fill();
-    c.textAlign='left'; c.font='bold 22px Fredoka, system-ui'; c.fillStyle='#222';
-    c.fillText(d?f.name:'???',76,y+27);
-    c.font='18px Fredoka, system-ui'; c.fillStyle=RAR[f.r].c; c.fillText(RAR[f.r].label,290,y+26);
-    c.textAlign='right'; c.fillStyle='#333';
-    c.fillText(d?`x${d.n} · best ${fmtW(d.best)}`:(f.minD?`cast ${f.minD}m+`:''),W-42,y+26);
+  c.fillStyle='#0d47a1'; c.font='bold 50px Fredoka, system-ui'; c.textAlign='center'; c.fillText('FISHDEX',W/2,72);
+  c.font='bold 26px Fredoka, system-ui'; c.fillStyle='#333'; c.fillText(`${caught} / ${FISH.length} found`,W/2,108);
+  const tw=(W-50)/ZONES.length;
+  ZONES.forEach((z,i)=>{ const x=25+i*tw, y=124;
+    rr(c,x+3,y,tw-6,48,12, zt===z.id?'#1e88e5':(b.hover==='dz'+z.id?'#90caf9':'#bbdefb'));
+    c.fillStyle=zt===z.id?'#fff':'#0d47a1'; c.font='bold 20px Fredoka, system-ui'; c.fillText(z.short,x+tw/2,y+32);
+    b.btn('dz'+z.id,x,y,tw,48,()=>{ dexTab=z.id; b.redraw(); sfx.tick(); });
   });
+  c.font='bold 24px Fredoka, system-ui'; c.fillStyle='#0d47a1'; c.fillText(zoneOf(zt).name,W/2,206);
+  FISH.filter(f=>f.zone===zt).forEach((f,i)=>{ const y=222+i*52, d=save.dex[f.id];
+    rr(c,30,y,W-60,46,10, i%2?'#ffffffaa':'#bbdefb88');
+    c.fillStyle=RAR[f.r].c; c.beginPath(); c.arc(54,y+23,12,0,7); c.fill();
+    c.textAlign='left'; c.font='bold 23px Fredoka, system-ui'; c.fillStyle='#222';
+    c.fillText(d?f.name:'???',76,y+31);
+    c.font='18px Fredoka, system-ui'; c.fillStyle=RAR[f.r].c; c.fillText(RAR[f.r].label,300,y+30);
+    c.textAlign='right'; c.fillStyle='#333';
+    c.fillText(d?`x${d.n} · ${fmtW(d.best)}`:(f.minD?`cast ${f.minD}m+`:''),W-42,y+30);
+  });
+});
+// travel board: unlock and visit the other fishing spots
+let travelMsg='Pick a place to fish';
+const travelBoard = new Board(2.4,3.2,600,800,(b,c)=>{
+  const W=b.cw;
+  rr(c,0,0,W,b.ch,0,'#5d4037'); rr(c,14,14,W-28,b.ch-28,18,'#e8f5e9');
+  c.fillStyle='#1b5e20'; c.font='bold 50px Fredoka, system-ui'; c.textAlign='center'; c.fillText('⛵ TRAVEL',W/2,76);
+  c.fillStyle='#333'; c.font='bold 30px Fredoka, system-ui'; c.fillText('🪙 '+save.coins,W/2,118);
+  ZONES.forEach((z,i)=>{ const x=30,y=146+i*112,w=W-60,h=100,id='tz'+z.id;
+    const here=curZone===z.id, owned=save.zones.includes(z.id);
+    rr(c,x,y,w,h,16, here?'#a5d6a7':(b.hover===id?'#fff3c4':'#ffffff'));
+    c.textAlign='left'; c.fillStyle='#1b5e20'; c.font='bold 32px Fredoka, system-ui'; c.fillText(z.name,x+18,y+42);
+    c.font='21px Fredoka, system-ui'; c.fillStyle='#555'; c.fillText(z.desc,x+18,y+76);
+    c.textAlign='right'; c.font='bold 26px Fredoka, system-ui';
+    c.fillStyle= here?'#2e7d32': owned?'#1565c0': (save.coins>=z.price?'#e65100':'#9e9e9e');
+    c.fillText(here?'YOU ARE HERE':owned?'GO':'🪙 '+z.price, x+w-18, y+58);
+    b.btn(id,x,y,w,h,()=>{
+      if(here){ travelMsg='You are already here'; sfx.tick(); }
+      else if(owned){ travelTo(z.id); return; }
+      else if(save.coins>=z.price){ save.coins-=z.price; save.zones.push(z.id); persist(); sfx.buy(); travelTo(z.id); return; }
+      else { travelMsg=`Need ${z.price-save.coins} more coins`; sfx.nope(); }
+      b.redraw();
+    });
+  });
+  c.textAlign='center'; c.fillStyle='#bf360c'; c.font='bold 25px Fredoka, system-ui'; c.fillText(travelMsg,W/2,b.ch-30);
 });
 placeBoard(shopBoard,-4.6,-13.2,0.45);
 placeBoard(dexBoard,4.6,-13.2,-0.45);
-const boardMeshes=[shopBoard.mesh,dexBoard.mesh];
+placeBoard(travelBoard,0,8.5,Math.PI);
+const boardMeshes=[shopBoard.mesh,dexBoard.mesh,travelBoard.mesh];
+function travelTo(id){
+  if(F.state!=='idle' && F.state!=='showing') endFishing();
+  setZone(id); save.zone=id; persist();
+  rig.position.set((Math.random()*2-1)*3,0,-4-Math.random()*3); yaw=0; rig.rotation.y=0;
+  travelMsg='Welcome to '+zoneOf(id).name+'!'; dexTab=null;
+  shopBoard.redraw(); dexBoard.redraw(); travelBoard.redraw();
+  setStatus('Welcome to '+zoneOf(id).name+'!',3); sfx.splash();
+  refreshZoneVisibility(); sendState(true); drawWrist();
+}
+
 const aOrAn=n=>(/^[aeiou]/i.test(n)?'an ':'a ')+n;
 function fmtW(w){ return w>=10?w.toFixed(0)+'kg':w>=1?w.toFixed(1)+'kg':(w*1000).toFixed(0)+'g'; }
 
@@ -582,10 +929,10 @@ function gearChanged(){
   sendState(true);
 }
 
-function pickFish(dist){
+function pickFish(dist,zone=curZone){
   const luck = curBait().luck;
   const mult = {junk:1/luck, common:1, uncommon:Math.sqrt(luck), rare:luck, epic:Math.pow(luck,1.3), legendary:Math.pow(luck,1.5)};
-  const pool = FISH.filter(f=>f.minD<=dist);
+  const pool = FISH.filter(f=>f.minD<=dist && f.zone===zone);
   let total=0; const ws = pool.map(f=>{ const w = RAR[f.r].w*mult[f.r] / pool.filter(g=>g.r===f.r).length; total+=w; return w; });
   let r=Math.random()*total;
   for(let i=0;i<pool.length;i++){ r-=ws[i]; if(r<=0) return pool[i]; }
@@ -677,8 +1024,8 @@ function landFish(){
   F.showObj=show; F.timer=3; F.state='showing';
   setStatus(`${isNew?'New fish! ':''}${RAR[f.r].label} ${f.name}${isBest&&!isNew?' (personal best!)':''}`,3);
   addFeed(`You caught ${aOrAn(f.name)} (${fmtW(w)})`, RAR[f.r].c);
-  send({t:'catch', id:net.myId, name:save.name, fish:f.name, r:f.r, w});
-  updateHud(); shopBoard.redraw(); dexBoard.redraw(); drawWrist();
+  send({t:'catch', id:net.myId, name:save.name, fish:f.name, r:f.r, w, z:curZone});
+  updateHud(); shopBoard.redraw(); dexBoard.redraw(); travelBoard.redraw(); drawWrist();
 }
 
 const ripples=[];
@@ -797,8 +1144,8 @@ function drawWrist(){ wristDirty=true; }
 
 // ================= INPUT: DESKTOP =================
 const keys={};
-addEventListener('keydown',e=>{ keys[e.code]=true; });
-addEventListener('keyup',e=>{ keys[e.code]=false; });
+addEventListener('keydown',e=>{ keys[e.code]=true; if(e.code==='KeyV' && !e.repeat && gameStarted) startTalk(); });
+addEventListener('keyup',e=>{ keys[e.code]=false; if(e.code==='KeyV') stopTalk(); });
 let yaw=0, pitch=0, locked=false, gameStarted=false;
 renderer.domElement.addEventListener('mousedown',e=>{
   if(!gameStarted||renderer.xr.isPresenting) return;
@@ -822,6 +1169,10 @@ if(isTouch){
   L.addEventListener('pointerdown',e=>{ lp={x:e.clientX,y:e.clientY,id:e.pointerId}; L.setPointerCapture(e.pointerId); });
   L.addEventListener('pointermove',e=>{ if(!lp||e.pointerId!==lp.id) return; yaw-=(e.clientX-lp.x)*0.005; pitch=clamp(pitch-(e.clientY-lp.y)*0.005,-1.4,1.4); lp.x=e.clientX; lp.y=e.clientY; });
   L.addEventListener('pointerup',()=>lp=null); L.addEventListener('pointercancel',()=>lp=null);
+  const T=$('talkBtn');
+  T.addEventListener('pointerdown',e=>{ e.preventDefault(); startTalk(); });
+  T.addEventListener('pointerup',e=>{ e.preventDefault(); stopTalk(); });
+  T.addEventListener('pointercancel',()=>stopTalk());
   const A=$('actBtn');
   A.addEventListener('pointerdown',e=>{ e.preventDefault(); actionDown(true); });
   A.addEventListener('pointerup',e=>{ e.preventDefault(); actionUp(); });
@@ -844,6 +1195,8 @@ for(let i=0;i<2;i++){
     if(hand==='left'){ leftGrip=g; g.add(wristBoard.mesh); wristBoard.mesh.position.set(0,0.05,0.07); wristBoard.mesh.rotation.set(-1.0,0,0); }
   });
   c.addEventListener('disconnected',()=>{ sources[c.userData.hand]=null; });
+  c.addEventListener('squeezestart',()=>startTalk());
+  c.addEventListener('squeezeend',()=>stopTalk());
   c.addEventListener('selectstart',()=>{ activeCtrl=c; actionDown(c.userData.hand!=='left'); });
   c.addEventListener('selectend',()=>{ if(c.userData.hand!=='left') actionUp(); else pressUsedByBoard=false; });
 }
@@ -972,6 +1325,7 @@ function hostLost(){
   setTimeout(()=>quickPlay(n,()=>{ net.lastHost=performance.now(); addFeed('Reconnected to '+roomLabel(),'#29b6f6'); refreshRoomBadge(); },err=>addFeed(err,'#e53935')), rand(300,2500));
 }
 addEventListener('pagehide',()=>{ try{ net.peer && net.peer.destroy(); }catch(e){} });
+function refreshZoneVisibility(){ for(const p of players.values()){ const h=(p.zone||'cove')===curZone; p.av.visible=h; if(!h){ p.bob.visible=false; p.line.visible=false; } } }
 function roomLabel(){ return net.pub ? 'Public server '+net.pub : net.code ? 'Room '+net.code : 'Solo'; }
 function refreshRoomBadge(){ $('room').textContent = roomLabel() + (net.code?` · ${players.size+1} here`:''); drawWrist(); }
 
@@ -1006,18 +1360,19 @@ function onData(d,c){
   if(d.t==='welcome'||d.t==='full') return;
   if(d.t==='hello'){ refreshRoomBadge(); addFeed(`${String(d.name||'Someone').slice(0,12)} joined`,'#29b6f6'); sfx.tick(); }
   else if(d.t==='s') applyState(d);
-  else if(d.t==='catch'){ addFeed(`${String(d.name||'Someone').slice(0,12)} caught ${aOrAn(String(d.fish))} (${fmtW(+d.w||0)})`, RAR[d.r]?.c||'#fff'); if(d.r==='legendary'||d.r==='epic') sfx.bite(); }
+  else if(d.t==='catch'){ addFeed(`${String(d.name||'Someone').slice(0,12)} caught ${aOrAn(String(d.fish))} (${fmtW(+d.w||0)})${d.z&&d.z!==curZone?' at '+zoneOf(d.z).name:''}`, RAR[d.r]?.c||'#fff'); if(d.r==='legendary'||d.r==='epic') sfx.bite(); }
   else if(d.t==='bye'){ removePlayer(d.id); refreshRoomBadge(); }
+  else if(d.t==='say' && typeof d.text==='string' && typeof d.bot==='string'){ botSay(d.bot, d.text.slice(0,240)); }
+  else if(d.t==='botchat' && net.isHost){ botFace(d); }
 }
 function applyState(d){
   let p=players.get(d.id);
   const name=String(d.name||'Fisher').slice(0,12), color=/^#[0-9a-f]{6}$/i.test(d.color)?d.color:'#ff7043', hat=HATS.some(h=>h.id===d.hat)?d.hat:'none';
-  const sp=SPECIES.some(x=>x.id===d.sp)?d.sp:'cat';
-  if(p && (p.av.userData.color!==color || p.av.userData.sp!==sp)){ // rebuild the critter when its look changes
-    const old=p.av; p.av=makeAvatar(name,color,hat,sp); p.av.position.copy(old.position); p.av.rotation.copy(old.rotation); scene.remove(old); scene.add(p.av);
+  if(p && p.av.userData.color!==color){ // rebuild the gorilla when its colour changes
+    const old=p.av; p.av=makeAvatar(name,color,hat); p.av.position.copy(old.position); p.av.rotation.copy(old.rotation); scene.remove(old); scene.add(p.av);
   }
   if(!p){
-    const av=makeAvatar(name,color,hat,sp); scene.add(av);
+    const av=makeAvatar(name,color,hat); scene.add(av);
     const bob=makeBobber(); bob.visible=false; scene.add(bob);
     const ln=makeLine(); ln.visible=false; scene.add(ln);
     p={av,bob,line:ln,target:new THREE.Vector3(),ry:0,tip:null,b:null,last:0};
@@ -1027,7 +1382,7 @@ function applyState(d){
   if(u.hat!==hat){ u.hatHolder.clear(); u.hatHolder.add(makeHat(hat)); u.hat=hat; }
   if(u.name!==name){ p.av.remove(u.label); u.label=textSprite(name,{size:48,scale:0.26}); u.label.position.y=1.95; p.av.add(u.label); u.name=name; }
   if(d.rc!==undefined) u.rod.userData.blankMat.color.setHex(d.rc);
-  p.target.set(d.p[0],0,d.p[2]); p.ry=d.ry; p.tip=d.tip?new THREE.Vector3().fromArray(d.tip):null; p.b=d.b?new THREE.Vector3().fromArray(d.b):null; p.last=performance.now();
+  p.zone=ZONE_BUILDERS[d.z]?d.z:'cove'; p.target.set(d.p[0],0,d.p[2]); p.ry=d.ry; p.tip=d.tip?new THREE.Vector3().fromArray(d.tip):null; p.b=d.b?new THREE.Vector3().fromArray(d.b):null; p.last=performance.now();
 }
 function removePlayer(id){
   const p=players.get(id); if(!p) return;
@@ -1040,7 +1395,7 @@ function sendState(force){
   const cp=camera.getWorldPosition(new THREE.Vector3()), dir=camera.getWorldDirection(new THREE.Vector3());
   const tip=rodTipWorld(new THREE.Vector3());
   const r2=v=>[+v.x.toFixed(2),+v.y.toFixed(2),+v.z.toFixed(2)];
-  send({t:'s',id:net.myId,name:save.name,color:save.color,hat:save.hat,sp:save.species,rc:curRod().col,
+  send({t:'s',id:net.myId,name:save.name,color:save.color,hat:save.hat,z:curZone,rc:curRod().col,
     p:r2(cp), ry:+Math.atan2(-dir.x,-dir.z).toFixed(3), tip:r2(tip), b:bobber.visible?r2(bobber.position):null});
 }
 function updatePlayers(dt){
@@ -1049,9 +1404,11 @@ function updatePlayers(dt){
     if(now-p.last>15000){ removePlayer(id); continue; }
     const moving=p.av.position.distanceTo(p.target)>0.03;
     p.av.position.lerp(p.target,k); p.av.position.y = moving ? Math.abs(Math.sin(now/90))*0.08 : Math.sin(now/600)*0.01;
+    const arms=p.av.userData.arms; if(arms) arms.forEach((a,i)=>a.rotation.x = moving ? Math.sin(now/110+i*Math.PI)*0.5 : 0);
     let dr=p.ry-p.av.rotation.y; dr=Math.atan2(Math.sin(dr),Math.cos(dr)); p.av.rotation.y+=dr*k;
     if(p.tip){ p.av.userData.rod.lookAt(p.tip); p.av.userData.rod.rotateY(Math.PI); }
-    if(p.b){ p.bob.visible=true; p.bob.position.lerp(p.b,k); p.line.visible=true;
+    const here=(p.zone||'cove')===curZone; p.av.visible=here;
+    if(p.b && here){ p.bob.visible=true; p.bob.position.lerp(p.b,k); p.line.visible=true;
       const t=p.tip||p.av.position; updateLine(p.line,t,p.bob.position,0.3); }
     else { p.bob.visible=false; p.line.visible=false; }
   }
@@ -1077,7 +1434,7 @@ function addBot(){
   const used=new Set(bots.map(b=>b.name));
   const nm=BOT_NAMES.filter(n=>!used.has('🤖 '+n)); const name='🤖 '+(nm[Math.floor(Math.random()*nm.length)]||'Bot');
   const b={id:'bot-'+net.myId+'-'+(botSeq++), name, color:COLOURS[Math.floor(Math.random()*COLOURS.length)],
-    hat:HATS[Math.floor(Math.random()*HATS.length)].id, sp:SPECIES[Math.floor(Math.random()*SPECIES.length)].id,
+    hat:HATS[Math.floor(Math.random()*HATS.length)].id, zone:(Math.random()<0.6?curZone:ZONES[Math.floor(Math.random()*ZONES.length)].id),
     rod:RODS[Math.floor(Math.random()*3)], x:rand(-4,4), z:rand(-8,-2), ry:Math.PI, state:'walk', path:[], spot:null,
     t:0, timer:0, bob:null, from:new THREE.Vector3(), to:new THREE.Vector3(), dist:0};
   planPath(b,freeSpot()); bots.push(b);
@@ -1107,9 +1464,12 @@ function updateBots(dt,time){
       const dx=wp.x-b.x, dz=wp.z-b.z, d=Math.hypot(dx,dz);
       if(d<0.15){ b.path.shift(); continue; }
       const st=Math.min(d,1.9*dt); b.x+=dx/d*st; b.z+=dz/d*st; b.ry=yawOf(dx,dz);
+    } else if(b.state==='chat'){
+      b.timer-=dt; if(b.timer<=0){ planPath(b,b.spot||freeSpot()); }
     } else if(b.state==='idle'){
       b.timer-=dt;
       if(b.timer<=0){
+        if(Math.random()<0.06){ b.zone=ZONES[Math.floor(Math.random()*ZONES.length)].id; b.x=rand(-3,3); b.z=rand(-7,-3); planPath(b,freeSpot()); continue; }
         if(Math.random()<0.25){ planPath(b,freeSpot()); continue; }
         const dist=rand(6,b.rod.cast); b.dist=dist;
         b.from.copy(botTip(b)); b.to.set(b.x+b.spot.dx*dist, WATER_Y+0.02, b.z+b.spot.dz*dist);
@@ -1130,9 +1490,9 @@ function updateBots(dt,time){
       if(b.timer<=0){
         b.bob=null; b.state='idle'; b.timer=rand(2,5);
         if(Math.random()<0.85){
-          const f=pickFish(b.dist), w=f.min+(f.max-f.min)*Math.pow(Math.random(),2.2);
-          const msg={t:'catch',id:b.id,name:b.name,fish:f.name,r:f.r,w:+w.toFixed(2)};
-          broadcast(msg); addFeed(`${b.name} caught ${aOrAn(f.name)} (${fmtW(w)})`, RAR[f.r].c);
+          const f=pickFish(b.dist,b.zone), w=f.min+(f.max-f.min)*Math.pow(Math.random(),2.2);
+          const msg={t:'catch',id:b.id,name:b.name,fish:f.name,r:f.r,w:+w.toFixed(2),z:b.zone};
+          broadcast(msg); addFeed(`${b.name} caught ${aOrAn(f.name)} (${fmtW(w)})${b.zone!==curZone?' at '+zoneOf(b.zone).name:''}`, RAR[f.r].c);
         }
       }
     }
@@ -1141,10 +1501,113 @@ function updateBots(dt,time){
 function sendBotStates(){
   const r2=v=>[+v.x.toFixed(2),+v.y.toFixed(2),+v.z.toFixed(2)];
   for(const b of bots){
-    const msg={t:'s',id:b.id,name:b.name,color:b.color,hat:b.hat,sp:b.sp,rc:b.rod.col,p:[+b.x.toFixed(2),1.6,+b.z.toFixed(2)],ry:+b.ry.toFixed(3),tip:r2(botTip(b)),b:b.bob?r2(b.bob):null};
+    const msg={t:'s',id:b.id,name:b.name,color:b.color,hat:b.hat,z:b.zone,rc:b.rod.col,p:[+b.x.toFixed(2),1.6,+b.z.toFixed(2)],ry:+b.ry.toFixed(3),tip:r2(botTip(b)),b:b.bob?r2(b.bob):null};
     applyState(msg); broadcast(msg);
   }
 }
+
+// ================= VOICE CHAT WITH BOTS (speech -> Cloudflare Workers AI -> bot reply) =================
+// Set this to your deployed worker address (see fishy/worker/README.md). Empty = bot chat switched off.
+const AI_URL = '';
+const voice = {rec:false, busy:false, stream:null, src:null, proc:null, chunks:[], inRate:48000, bot:null, t0:0, hist:{}};
+function nearestBot(){
+  const cp=camera.getWorldPosition(new THREE.Vector3()); let best=null, bd=7;
+  for(const [id,p] of players){ if(!id.startsWith('bot-') || (p.zone||'cove')!==curZone) continue;
+    const d=Math.hypot(p.av.position.x-cp.x, p.av.position.z-cp.z); if(d<bd){ bd=d; best={id,p}; } }
+  return best;
+}
+async function getMic(){
+  if(voice.stream) return voice.stream;
+  if(!navigator.mediaDevices?.getUserMedia) throw new Error('nomic');
+  voice.stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true}});
+  return voice.stream;
+}
+async function startTalk(){
+  if(voice.rec || voice.busy) return;
+  if(!AI_URL){ setStatus('Talking to bots isn\'t switched on yet',3); return; }
+  const nb=nearestBot(); if(!nb){ setStatus('Walk up close to a 🤖 bot to talk to it',3); return; }
+  voice.bot=nb;
+  try{ await getMic(); }catch(e){ setStatus('Microphone blocked. Allow mic access to talk to bots.',4); return; }
+  const a=audio(); if(!a) return;
+  voice.inRate=a.sampleRate; voice.chunks=[];
+  voice.src=a.createMediaStreamSource(voice.stream); voice.proc=a.createScriptProcessor(4096,1,1);
+  voice.proc.onaudioprocess=e=>{ if(voice.rec) voice.chunks.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
+  voice.src.connect(voice.proc); voice.proc.connect(a.destination);
+  voice.rec=true; voice.t0=performance.now();
+  setStatus(`🎤 Talking to ${nb.p.av.userData.name}... let go when done`); buzz('left',0.3,40);
+  tellBot(nb.id); // bot stops and turns to face you
+}
+function wavFromChunks(chunks,inRate,outRate=16000){
+  let len=0; chunks.forEach(c=>len+=c.length);
+  const all=new Float32Array(len); let o=0; chunks.forEach(c=>{ all.set(c,o); o+=c.length; });
+  const ratio=inRate/outRate, n=Math.floor(len/ratio), pcm=new Int16Array(n);
+  for(let i=0;i<n;i++){ const s=all[Math.floor(i*ratio)]; pcm[i]=Math.max(-1,Math.min(1,s))*0x7fff; }
+  const buf=new ArrayBuffer(44+pcm.length*2), v=new DataView(buf);
+  const w=(p,str)=>{ for(let i=0;i<str.length;i++) v.setUint8(p+i,str.charCodeAt(i)); };
+  w(0,'RIFF'); v.setUint32(4,36+pcm.length*2,true); w(8,'WAVE'); w(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,outRate,true); v.setUint32(28,outRate*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true); w(36,'data'); v.setUint32(40,pcm.length*2,true);
+  new Int16Array(buf,44).set(pcm);
+  return {blob:new Blob([buf],{type:'audio/wav'}), secs:n/outRate};
+}
+async function stopTalk(){
+  if(!voice.rec) return;
+  voice.rec=false;
+  try{ voice.src.disconnect(); voice.proc.disconnect(); }catch(e){}
+  const {blob,secs}=wavFromChunks(voice.chunks,voice.inRate);
+  if(secs<0.4){ setStatus('Hold the talk button while you speak',3); return; }
+  const nb=voice.bot, name=nb.p.av.userData.name, plain=name.replace(/[^A-Za-z ]/g,'').trim()||'Bot';
+  voice.busy=true; setStatus(`${name} is thinking...`);
+  const hist=voice.hist[nb.id]||(voice.hist[nb.id]=[]);
+  try{
+    const fd=new FormData();
+    fd.append('audio',blob,'talk.wav'); fd.append('bot',plain); fd.append('zone',zoneOf(curZone).name);
+    fd.append('player',save.name||'Friend'); fd.append('history',JSON.stringify(hist.slice(-6)));
+    const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),20000);
+    const res=await fetch(AI_URL.replace(/\/$/,'')+'/talk',{method:'POST',body:fd,signal:ctrl.signal}); clearTimeout(to);
+    const j=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j.error||('HTTP '+res.status));
+    const heard=String(j.heard||'').slice(0,200), reply=String(j.reply||'').slice(0,240);
+    if(heard){ hist.push({r:'u',t:heard}); addFeed(`You: ${heard}`,'#90caf9'); }
+    if(reply){ hist.push({r:'b',t:reply}); botSay(nb.id,reply); send({t:'say',id:net.myId,bot:nb.id,text:reply,z:curZone}); }
+    setStatus('',0);
+  }catch(e){
+    setStatus(e.name==='AbortError'?'The bot took too long to answer, try again':(String(e.message).includes('limit')?'Too many chats, take a short break and try again':'Couldn\'t reach the bot brain, try again'),4);
+  }finally{ voice.busy=false; }
+}
+function tellBot(botId){
+  const cp=camera.getWorldPosition(new THREE.Vector3());
+  const msg={t:'botchat',id:net.myId,bot:botId,x:+cp.x.toFixed(2),z:+cp.z.toFixed(2)};
+  if(net.isHost) botFace(msg); else send(msg);
+}
+function botFace(d){ const b=bots.find(x=>x.id===d.bot); if(!b) return;
+  if(b.state==='walk'){ b.path=[]; }
+  b.bob=null; b.state='chat'; b.timer=14; b.ry=Math.atan2(-(d.x-b.x),-(d.z-b.z)); }
+// speech bubble over a player/bot, plus the bot's voice (if the browser can speak)
+function bubbleSprite(text){
+  const c=document.createElement('canvas'), x=c.getContext('2d'), W=640;
+  x.font='bold 34px Fredoka, system-ui, sans-serif';
+  const words=text.split(/\s+/), lines=[]; let cur='';
+  words.forEach(wd=>{ const t=cur?cur+' '+wd:wd; if(x.measureText(t).width>W-60){ lines.push(cur); cur=wd; } else cur=t; }); if(cur) lines.push(cur);
+  const L=lines.slice(0,5); c.width=W; c.height=L.length*44+50;
+  x.font='bold 34px Fredoka, system-ui, sans-serif';
+  x.fillStyle='#ffffff'; x.strokeStyle='#1d2b3a'; x.lineWidth=6; x.beginPath(); x.roundRect(4,4,W-8,c.height-30,28); x.fill(); x.stroke();
+  x.beginPath(); x.moveTo(W/2-20,c.height-28); x.lineTo(W/2,c.height-4); x.lineTo(W/2+20,c.height-28); x.fill(); 
+  x.fillStyle='#1d2b3a'; x.textAlign='center'; x.textBaseline='middle'; L.forEach((ln,i)=>x.fillText(ln,W/2,30+i*44));
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace;
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:t,depthTest:false,transparent:true})); s.renderOrder=11;
+  const h=1.5*c.height/W; s.scale.set(1.5,h,1); s.center.set(0.5,0); return s;
+}
+const bubbles=[];
+function botSay(botId,text){
+  const p=players.get(botId); if(!p) return;
+  if(p.bubble){ p.av.remove(p.bubble); }
+  const s=bubbleSprite(text); s.position.y=2.15; p.av.add(s); p.bubble=s; bubbles.push({p,s,t:Math.min(14,4+text.length*0.08)});
+  if((p.zone||'cove')!==curZone) return;
+  const cp=camera.getWorldPosition(new THREE.Vector3()); if(p.av.position.distanceTo(cp)>14) return;
+  try{ if(window.speechSynthesis){ const u=new SpeechSynthesisUtterance(text); let h=0; for(const ch of botId) h=(h*31+ch.charCodeAt(0))%997;
+    u.pitch=0.7+(h%60)/100; u.rate=1.02; u.lang='en-AU'; speechSynthesis.cancel(); speechSynthesis.speak(u); } }catch(e){}
+}
+function updateBubbles(dt){ for(let i=bubbles.length-1;i>=0;i--){ const b=bubbles[i]; b.t-=dt; if(b.t<=0){ b.p.av.remove(b.s); if(b.p.bubble===b.s) b.p.bubble=null; bubbles.splice(i,1); } } }
 
 // ================= LOBBY =================
 $('nm').value = save.name || '';
@@ -1153,12 +1616,8 @@ COLOURS.forEach(col=>{
   b.onclick=()=>{ save.color=col; persist(); [...$('colours').children].forEach(x=>x.style.borderColor='#fff'); b.style.borderColor='#1d2b3a'; };
   $('colours').appendChild(b);
 });
-SPECIES.forEach(sp=>{
-  const b=document.createElement('button'); b.textContent=sp.e; b.title=sp.id;
-  b.style.cssText=`flex:none;width:48px;height:48px;padding:0;font-size:26px;background:${sp.id===save.species?'#ffe08a':'#fff'}`;
-  b.onclick=()=>{ save.species=sp.id; persist(); [...$('species').children].forEach(x=>x.style.background='#fff'); b.style.background='#ffe08a'; };
-  $('species').appendChild(b);
-});
+if(AI_URL){ $('micRow').style.display='block';
+  $('micOk').onchange=async()=>{ if($('micOk').checked){ try{ await getMic(); $('lmsg').style.color='#2e7d32'; $('lmsg').textContent='Mic ready! Walk up to a 🤖 bot and hold the talk button.'; }catch(e){ $('micOk').checked=false; $('lmsg').style.color='#c62828'; $('lmsg').textContent='Mic was blocked. You can still play without it.'; } } }; }
 function readName(){ const n=$('nm').value.trim().slice(0,12); if(!n){ $('lmsg').textContent='Type your name first'; return null; } save.name=n; persist(); return n; }
 function lobbyBusy(b){ ['quick','solo','host','join'].forEach(id=>$(id).disabled=b); }
 function goStart(text){
@@ -1198,15 +1657,16 @@ document.body.appendChild(VRButton.createButton(renderer));
 scene.add(wristBoard.mesh); wristBoard.mesh.visible=false;
 
 // ================= LOOP =================
-updateHud(); shopBoard.redraw(); dexBoard.redraw();
-try{ document.fonts.ready.then(()=>{ shopBoard.redraw(); dexBoard.redraw(); }); }catch(e){}
+setZone(save.zone);
+updateHud(); shopBoard.redraw(); dexBoard.redraw(); travelBoard.redraw();
+try{ document.fonts.ready.then(()=>{ shopBoard.redraw(); dexBoard.redraw(); travelBoard.redraw(); }); }catch(e){}
 const clock = new THREE.Clock(); let jumpT=3;
 addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
 
 renderer.setAnimationLoop(()=>{
   const dt=Math.min(0.05,clock.getDelta()), time=clock.elapsedTime;
   waterU.uTime.value=time;
-  flame.scale.y=1+Math.sin(time*13)*0.15; flame2.scale.y=1+Math.sin(time*17)*0.2; fireLight.intensity=2.5+Math.sin(time*17)*0.6;
+  zoneUpdate(time,dt); RAINBOW_U.uTime.value=time; updateFishFx(time,dt);
   clouds.forEach((c,i)=>{ c.position.x+=dt*(0.6+i%3*0.3); if(c.position.x>220) c.position.x=-220; });
   if(gameStarted) updateMovement(dt);
   updateFishing(dt,time);
@@ -1224,7 +1684,7 @@ renderer.setAnimationLoop(()=>{
     }
   } else {
     const bh = F.state==='idle' ? boardHit(aim) : null;
-    for(const bd of [shopBoard,dexBoard]){ const b = bh&&bh.board===bd ? bd.hit(bh.uv) : null; bd.setHover(b?b.id:null); }
+    for(const bd of [shopBoard,dexBoard,travelBoard]){ const b = bh&&bh.board===bd ? bd.hit(bh.uv) : null; bd.setHover(b?b.id:null); }
     $('cross').style.background = bh ? '#ffca28' : '#fff';
   }
   wristT-=dt; if(wristDirty && wristT<=0 && renderer.xr.isPresenting){ wristBoard.redraw(); wristDirty=false; wristT=0.1; }
@@ -1234,7 +1694,7 @@ renderer.setAnimationLoop(()=>{
   for(let i=jumpers.length-1;i>=0;i--){ const j=jumpers[i]; j.t+=dt/1.1; const k=j.t; j.m.position.set(j.x+j.dx*k*3, WATER_Y-0.3+Math.sin(Math.min(1,k)*Math.PI)*2.2, j.z+j.dz*k*3); j.m.rotation.z=(0.5-k)*2.2; if(k>=1){ ripple(j.m.position,1.2); scene.remove(j.m); jumpers.splice(i,1);} }
   shallow.material.opacity=0.4+Math.sin(time*0.8)*0.06; foam.scale.setScalar(1+Math.sin(time*1.2)*0.01);
   if(!net.isHost && net.pub && net.code && net.lastHost && performance.now()-net.lastHost>8000) hostLost();
-  updatePlayers(dt);
+  updatePlayers(dt); updateBubbles(dt);
   renderer.render(scene,camera);
 });
 </script>
