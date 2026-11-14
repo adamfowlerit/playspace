@@ -734,7 +734,8 @@ function makeHat(id){
 }
 
 const OUTLINE = new THREE.MeshBasicMaterial({color:0x1d2b3a, side:THREE.BackSide});
-// original cartoon gorilla: big round chest, long arms with big hands, little legs, friendly face
+// original cartoon gorilla, no legs: a round body that hovers low and two long arms that do the walking
+const ARM_GEO = new THREE.CapsuleGeometry(0.085, 1, 4, 8);   // 1.17 long along Y, stretched to fit shoulder->hand
 function makeAvatar(name,color,hat){
   const g = new THREE.Group();
   const fur = new THREE.Color(color);
@@ -747,40 +748,60 @@ function makeAvatar(name,color,hat){
   const add=(par,geo,mat,x,y,z,ol,sx=1,sy=1,sz=1)=>{ const m=new THREE.Mesh(geo,mat); m.position.set(x,y,z); m.scale.set(sx,sy,sz); par.add(m);
     if(ol){ const o=new THREE.Mesh(geo,OUTLINE); o.position.copy(m.position); o.scale.set(sx*1.06,sy*1.06,sz*1.06); par.add(o); m.userData.ol=o; } return m; };
   const S=(r,w=14,h=10)=>new THREE.SphereGeometry(r,w,h);
-  // legs + feet
-  for(const s of [-1,1]){ add(g,S(0.15),darkM,s*0.17,0.22,0,true,1,1.3,1); add(g,S(0.14),faceM,s*0.18,0.06,-0.07,true,1,0.5,1.4); }
-  // big round chest/body (forward is -Z)
-  add(g,S(0.42,18,14),furM,0,0.72,0,true,1.05,1,0.9);
-  add(g,S(0.3),chestM,0,0.72,-0.2,false,1.05,1,0.55);
+  // round body (forward is -Z), hovering just above the ground
+  add(g,S(0.4,18,14),furM,0,0.58,0,true,1.05,1,0.9);
+  add(g,S(0.29),chestM,0,0.56,-0.19,false,1.05,1,0.55);
   // head
-  const head=new THREE.Group(); head.position.set(0,1.28,-0.04); g.add(head);
+  const head=new THREE.Group(); head.position.set(0,1.06,-0.04); g.add(head);
   add(head,S(0.3,18,14),furM,0,0,0,true,1,0.95,1);
-  add(head,S(0.24),faceM,0,-0.05,-0.15,false,1.05,0.85,0.6);        // face mask
-  add(head,S(0.15),faceM,0,-0.13,-0.25,true,1.25,0.8,0.8);          // muzzle
-  add(head,new THREE.CapsuleGeometry(0.06,0.3,4,8),darkM,0,0.1,-0.24,false,1,1,1).rotation.z=Math.PI/2; // brow
+  add(head,S(0.24),faceM,0,-0.05,-0.15,false,1.05,0.85,0.6);
+  add(head,S(0.15),faceM,0,-0.13,-0.25,true,1.25,0.8,0.8);
+  add(head,new THREE.CapsuleGeometry(0.06,0.3,4,8),darkM,0,0.1,-0.24,false).rotation.z=Math.PI/2;
   for(const s of [-1,1]){
     add(head,S(0.085),white,s*0.1,0.02,-0.27,false,1,1.1,0.5);
     add(head,S(0.05),black,s*0.1,0.01,-0.31,false,1,1.1,0.5);
     add(head,S(0.018),white,s*0.1+0.02,0.04,-0.335,false);
-    add(head,S(0.025),black,s*0.04,-0.1,-0.37,false);                // nostrils
-    add(head,S(0.05),pink,s*0.19,-0.1,-0.24,false,1,0.6,0.4);         // cheeks
-    add(head,S(0.08),faceM,s*0.3,0.02,0,true,0.6,1,1);                // ears
+    add(head,S(0.025),black,s*0.04,-0.1,-0.37,false);
+    add(head,S(0.05),pink,s*0.19,-0.1,-0.24,false,1,0.6,0.4);
+    add(head,S(0.08),faceM,s*0.3,0.02,0,true,0.6,1,1);
   }
-  add(head,new THREE.TorusGeometry(0.07,0.012,6,12,Math.PI),black,0,-0.2,-0.33,false).rotation.z=Math.PI; // smile
-  // long arms with big knuckle hands
+  add(head,new THREE.TorusGeometry(0.07,0.012,6,12,Math.PI),black,0,-0.2,-0.33,false).rotation.z=Math.PI;
+  // long arms: shoulder ball, stretchy arm, big knuckle hand (posed every frame by poseArms)
   const arms=[];
   for(const s of [-1,1]){
-    const arm=new THREE.Group(); arm.position.set(s*0.43,1.0,-0.02); g.add(arm);
-    add(arm,S(0.15),furM,0,0,0,true);
-    const up=add(arm,new THREE.CapsuleGeometry(0.11,0.42,4,8),furM,s*0.06,-0.3,-0.05,true); up.rotation.z=s*0.15; up.userData.ol.rotation.z=s*0.15;
-    add(arm,S(0.16),darkM,s*0.12,-0.62,-0.12,true,1,0.9,1.1);
-    arms.push(arm);
+    const shoulder=new THREE.Vector3(s*0.4,0.82,-0.02);
+    add(g,S(0.14),furM,shoulder.x,shoulder.y,shoulder.z,true);
+    const arm=new THREE.Mesh(ARM_GEO,furM); g.add(arm);
+    const armOl=new THREE.Mesh(ARM_GEO,OUTLINE); g.add(armOl);
+    const hand=add(g,S(0.15),darkM,s*0.5,0.08,-0.25,true,1,0.85,1.15);
+    arms.push({s,shoulder,arm,armOl,hand,target:new THREE.Vector3(s*0.5,0.08,-0.25)});
   }
-  const hatHolder = new THREE.Group(); hatHolder.position.y = 1.53; hatHolder.scale.setScalar(1.15); g.add(hatHolder); hatHolder.add(makeHat(hat));
-  const label = textSprite(name,{size:48,scale:0.26}); label.position.y = 1.95; g.add(label);
-  const rod = makeRod(0x8d6e63); rod.position.set(0.56,0.4,-0.15); g.add(rod);
+  const hatHolder = new THREE.Group(); hatHolder.position.y = 1.31; hatHolder.scale.setScalar(1.15); g.add(hatHolder); hatHolder.add(makeHat(hat));
+  const label = textSprite(name,{size:48,scale:0.26}); label.position.y = 1.72; g.add(label);
+  const rod = makeRod(0x8d6e63); g.add(rod);
   g.userData = {hatHolder, label, rod, hat, name, color, arms};
+  poseArms(g,null,false,0);
   return g;
+}
+// place each arm between its shoulder and a hand target (local space). handsWorld: [Vector3,Vector3] from VR players, else a knuckle-walk cycle
+const _up=new THREE.Vector3(0,1,0), _d=new THREE.Vector3(), _w=new THREE.Vector3();
+function poseArms(av, handsWorld, moving, now){
+  av.updateMatrixWorld();
+  av.userData.arms.forEach((a,i)=>{
+    if(handsWorld && handsWorld[i]){ a.target.copy(av.worldToLocal(_w.copy(handsWorld[i]))); }
+    else { const ph=now/170+(a.s>0?Math.PI:0); const step=moving?Math.sin(ph):0;
+      a.target.set(a.s*0.5, 0.08+(moving?Math.max(0,Math.cos(ph))*0.18:0), -0.25-step*0.3); }
+    // keep the hand within arm's reach (max 1.3 m from the shoulder)
+    _d.subVectors(a.target,a.shoulder); let len=_d.length(); if(len>1.3){ _d.multiplyScalar(1.3/len); len=1.3; a.target.copy(a.shoulder).add(_d); }
+    len=Math.max(len,0.15);
+    a.hand.position.copy(a.target); a.hand.userData.ol.position.copy(a.target);
+    const mid=a.shoulder.clone().add(a.target).multiplyScalar(0.5);
+    const q=new THREE.Quaternion().setFromUnitVectors(_up,_d.clone().normalize());
+    a.arm.position.copy(mid); a.arm.quaternion.copy(q); a.arm.scale.set(1,len/1.17,1);
+    a.armOl.position.copy(mid); a.armOl.quaternion.copy(q); a.armOl.scale.set(1.12,len/1.17*1.02,1.12);
+  });
+  // rod sits in the right hand
+  const rh=av.userData.arms[1].hand.position; av.userData.rod.position.set(rh.x,rh.y+0.05,rh.z);
 }
 
 // ================= BOARDS (world-space UI usable by mouse and VR laser) =================
@@ -1419,7 +1440,8 @@ function applyState(d){
   if(u.hat!==hat){ u.hatHolder.clear(); u.hatHolder.add(makeHat(hat)); u.hat=hat; }
   if(u.name!==name){ p.av.remove(u.label); u.label=textSprite(name,{size:48,scale:0.26}); u.label.position.y=1.95; p.av.add(u.label); u.name=name; }
   if(d.rc!==undefined) u.rod.userData.blankMat.color.setHex(d.rc);
-  p.zone=ZONE_BUILDERS[d.z]?d.z:'cove'; p.target.set(d.p[0],0,d.p[2]); p.ry=d.ry; p.tip=d.tip?new THREE.Vector3().fromArray(d.tip):null; p.b=d.b?new THREE.Vector3().fromArray(d.b):null; p.last=performance.now();
+  p.zone=ZONE_BUILDERS[d.z]?d.z:'cove'; p.target.set(d.p[0],Math.max(0,(+d.p[1]||1.6)-(d.vr?1.1:1.6)),d.p[2]); p.ry=d.ry;
+  p.hands = Array.isArray(d.hw)&&d.hw.length===6 ? [new THREE.Vector3(d.hw[0],d.hw[1],d.hw[2]), new THREE.Vector3(d.hw[3],d.hw[4],d.hw[5])] : null; p.tip=d.tip?new THREE.Vector3().fromArray(d.tip):null; p.b=d.b?new THREE.Vector3().fromArray(d.b):null; p.last=performance.now();
 }
 function removePlayer(id){
   const p=players.get(id); if(!p) return;
@@ -1432,7 +1454,10 @@ function sendState(force){
   const cp=camera.getWorldPosition(new THREE.Vector3()), dir=camera.getWorldDirection(new THREE.Vector3());
   const tip=rodTipWorld(new THREE.Vector3());
   const r2=v=>[+v.x.toFixed(2),+v.y.toFixed(2),+v.z.toFixed(2)];
-  send({t:'s',id:net.myId,name:save.name,color:save.color,hat:save.hat,z:curZone,rc:curRod().col,
+  const vr=renderer.xr.isPresenting; let hw=null;
+  if(vr){ const L=controllers.find(c=>c.userData.hand==='left'), R=controllers.find(c=>c.userData.hand==='right');
+    if(L&&R){ const a=L.getWorldPosition(new THREE.Vector3()), b=R.getWorldPosition(new THREE.Vector3()); hw=[...r2(a),...r2(b)]; } }
+  send({t:'s',id:net.myId,name:save.name,color:save.color,hat:save.hat,z:curZone,rc:curRod().col,vr:vr?1:0,hw,
     p:r2(cp), ry:+Math.atan2(-dir.x,-dir.z).toFixed(3), tip:r2(tip), b:bobber.visible?r2(bobber.position):null});
 }
 function updatePlayers(dt){
@@ -1440,9 +1465,9 @@ function updatePlayers(dt){
   for(const [id,p] of players){
     if(now-p.last>15000){ removePlayer(id); continue; }
     const moving=p.av.position.distanceTo(p.target)>0.03;
-    p.av.position.lerp(p.target,k); p.av.position.y = moving ? Math.abs(Math.sin(now/90))*0.08 : Math.sin(now/600)*0.01;
-    const arms=p.av.userData.arms; if(arms) arms.forEach((a,i)=>a.rotation.x = moving ? Math.sin(now/110+i*Math.PI)*0.5 : 0);
+    const baseY=p.av.position.y; p.av.position.lerp(p.target,k); if(p.target.y<0.01) p.av.position.y = moving&&!p.hands ? Math.abs(Math.sin(now/170))*0.05 : Math.sin(now/600)*0.01; else p.av.position.y=baseY+(p.target.y-baseY)*k;
     let dr=p.ry-p.av.rotation.y; dr=Math.atan2(Math.sin(dr),Math.cos(dr)); p.av.rotation.y+=dr*k;
+    poseArms(p.av, p.hands, moving, now);
     if(p.tip){ p.av.userData.rod.lookAt(p.tip); p.av.userData.rod.rotateY(Math.PI); }
     const here=(p.zone||'cove')===curZone; p.av.visible=here;
     if(p.b && here){ p.bob.visible=true; p.bob.position.lerp(p.b,k); p.line.visible=true;
